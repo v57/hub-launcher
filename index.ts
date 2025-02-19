@@ -7,11 +7,19 @@ interface App {
   active: boolean
 }
 
-async function loadServices() {
+async function loadServices(): Promise<(App & AppSetup)[]> {
   try {
-    return (await Bun.file('launch.json').json()) as (App & AppSetup)[]
+    return await Bun.file('launch.json').json()
   } catch {
-    return []
+    return [
+      {
+        name: 'Hub Lite',
+        type: 'bun',
+        command: 'start',
+        repo: 'v57/hub-lite',
+        active: true,
+      },
+    ]
   }
 }
 
