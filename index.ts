@@ -1,5 +1,6 @@
 import { $ } from 'bun'
 import { type AppSetup, install, launch } from './launcher'
+import { Service } from 'hub-service'
 
 interface App {
   name: string
@@ -20,3 +21,4 @@ for (const service of services) {
   await install(service)
   launch(service)
 }
+new Service().start()
