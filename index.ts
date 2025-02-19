@@ -25,4 +25,8 @@ new Service()
   .post('launcher/update', async () => {
     await $`git pull`
   })
+  .post('launcher/update/check', async () => {
+    const res = await $`git fetch --dry-run`
+    return res.stderr.length > 0
+  })
   .start()
