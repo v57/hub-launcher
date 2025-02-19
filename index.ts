@@ -21,4 +21,8 @@ for (const service of services) {
   await install(service)
   launch(service)
 }
-new Service().start()
+new Service()
+  .post('launcher/update', async () => {
+    await $`git pull`
+  })
+  .start()
