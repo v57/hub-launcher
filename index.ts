@@ -1,35 +1,9 @@
 import { $ } from 'bun'
-import { type AppSetup, install, launch } from './launcher/launcher'
 import { Service } from 'hub-service'
+import { Apps } from './launcher/app'
+const apps = new Apps()
+await apps.start()
 
-interface AppInfo {
-  name: string
-  active: boolean
-}
-type App = AppInfo & AppSetup
-
-async function loadServices(): Promise<App[]> {
-  try {
-    return await Bun.file('launch.json').json()
-  } catch {
-    return [
-      {
-        name: 'Hub Lite',
-        type: 'bun',
-        command: 'start',
-        repo: 'v57/hub-lite',
-        active: true,
-      },
-    ]
-  }
-}
-
-let services = await loadServices()
-for (const service of services) {
-  console.log('Starting', service.name)
-  await install(service)
-  launch(service)
-}
 new Service()
   .post('launcher/update', async () => {
     await $`git pull`
