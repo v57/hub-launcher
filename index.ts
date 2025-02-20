@@ -16,5 +16,6 @@ new Service()
   .post('launcher/stop', async () => {
     setTimeout(() => process.exit(0), 500)
   })
+  .post('launcher/info', () => apps.info())
   .post('launcher/status', () => apps.status())
   .start()

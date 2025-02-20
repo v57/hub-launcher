@@ -9,6 +9,7 @@ interface AppInfo {
 type App = AppInfo & AppSetup
 
 interface AppStatus {
+  name: string
   isRunning: boolean
   crashes: number
   cpu?: number
@@ -21,6 +22,7 @@ class RunningApp {
   constructor(data: App) {
     this.data = data
     this.status = {
+      name: data.name,
       isRunning: false,
       crashes: 0,
     }
@@ -117,6 +119,9 @@ export class Apps {
         }
       }
     }
+  }
+  async info() {
+    return { apps: this.list.map(a => a.data) }
   }
   async status() {
     await this.updateUsage()
