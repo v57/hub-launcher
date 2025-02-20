@@ -1,13 +1,14 @@
 import { $ } from 'bun'
-import { type AppSetup, install, launch } from './launcher'
+import { type AppSetup, install, launch } from './launcher/launcher'
 import { Service } from 'hub-service'
 
-interface App {
+interface AppInfo {
   name: string
   active: boolean
 }
+type App = AppInfo & AppSetup
 
-async function loadServices(): Promise<(App & AppSetup)[]> {
+async function loadServices(): Promise<App[]> {
   try {
     return await Bun.file('launch.json').json()
   } catch {
