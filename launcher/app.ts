@@ -92,6 +92,15 @@ export class Apps {
       this.list.push(app)
     }
   }
+  async save() {
+    await Bun.file('launch.json').write(
+      JSON.stringify(
+        this.list.map(a => a.data),
+        null,
+        2,
+      ),
+    )
+  }
   async updateUsage() {
     const pids: number[] = this.list.map(a => a.process?.pid ?? 0).filter(a => a)
     const res = await $`ps -p ${pids.join(
