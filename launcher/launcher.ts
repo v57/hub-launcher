@@ -1,12 +1,12 @@
 import { Git } from './git'
-import { $ } from 'bun'
+import { $, type Subprocess } from 'bun'
 
 export type AppSetup = TBun | TSh
 
 export function install(setup: AppSetup): Promise<any> {
   return (installation as any)[setup.type](setup)
 }
-export function launch(setup: AppSetup): Promise<any> {
+export function launch(setup: AppSetup): Subprocess<'ignore', 'pipe', 'inherit'> {
   return (launcher as any)[setup.type](setup)
 }
 
@@ -29,20 +29,15 @@ const installation = {
   },
 }
 const launcher = {
-  async bun(setup: IBun) {
+  bun(setup: IBun) {
     const git = new Git(`https://github.com/${setup.repo}`)
-    const error = await $`bun ${setup.command ?? '.'}`.cwd(git.directory)
-    console.log(error.stdout.toString)
+    return Bun.spawn({
+      cmd: ['bun', setup.command ?? '.'],
+      cwd: git.directory,
+    })
   },
-  async sh(setup: ISh) {
-    if (!setup.run) return
-    if (typeof setup.run === 'string') {
-      await Bun.spawn(setup.run.split(' ')).exited
-    } else {
-      for (const command of setup.run) {
-        await Bun.spawn(command.split(' ')).exited
-      }
-    }
+  sh(setup: ISh) {
+    return Bun.spawn(setup.run.split(' '))
   },
 }
 
@@ -65,5 +60,5 @@ interface IBun extends IGithub {
 interface ISh {
   directory?: string
   install?: string[] | string
-  run?: string[] | string
+  run: string
 }

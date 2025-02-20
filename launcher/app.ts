@@ -23,8 +23,8 @@ class RunningApp {
   async install() {
     await install(this.data)
   }
-  start() {
-    launch(this.data)
+  async start() {
+    await launch(this.data).exited
   }
 }
 
