@@ -1,4 +1,4 @@
-import type { Subprocess } from 'bun'
+import { type Subprocess, $ } from 'bun'
 import { install, launch, type AppSetup } from './launcher'
 
 interface AppInfo {
@@ -11,6 +11,8 @@ type App = AppInfo & AppSetup
 interface AppStatus {
   isRunning: boolean
   crashes: number
+  cpu?: number
+  memory?: number
 }
 class RunningApp {
   data: App
@@ -46,6 +48,7 @@ class RunningApp {
       this.process = process
       const code = await process.exited
       delete this.process
+      if (code === 0 || process.killed) return
       console.log('Process completed', code, process.killed)
     } catch (e) {
       delete this.process
@@ -87,6 +90,23 @@ export class Apps {
       await app.install()
       app.start()
       this.list.push(app)
+    }
+  }
+  async updateUsage() {
+    const pids: number[] = this.list.map(a => a.process?.pid ?? 0).filter(a => a)
+    const res = await $`ps -p ${pids.join(
+      ',',
+    )} -o pid,%cpu,rss,vsz | awk 'NR>1 {printf "%s/%s/%.2f\n", $1, $2, $3/1024, $4/1024}`.text()
+    for (const a of res.split('\n')) {
+      const i = a.split('/')
+      const pid = Number(i[0])
+      if (pid) {
+        const app = this.list.find(a => a.process?.pid === pid)
+        if (app) {
+          app.status.cpu = Number(i[1])
+          app.status.memory = Number(i[2])
+        }
+      }
     }
   }
 }
