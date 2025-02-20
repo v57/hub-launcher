@@ -118,4 +118,8 @@ export class Apps {
       }
     }
   }
+  async status() {
+    await this.updateUsage()
+    return { apps: this.list.map(a => a.status) }
+  }
 }
