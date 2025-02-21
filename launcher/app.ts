@@ -46,6 +46,7 @@ class RunningApp {
   }
   async launch() {
     try {
+      this.data.active = true
       this.status.isRunning = true
       const process = launch(this.data)
       this.process = process
@@ -63,6 +64,7 @@ class RunningApp {
     }
   }
   async stop() {
+    this.data.active = false
     this.process?.kill()
   }
 }
