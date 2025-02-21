@@ -105,6 +105,7 @@ export class Apps {
   }
   async updateUsage() {
     const pids: number[] = this.list.map(a => a.process?.pid ?? 0).filter(a => a)
+    if (!pids.length) return
     const res = await $`ps -p ${pids.join(
       ',',
     )} -o pid,%cpu,rss,vsz | awk 'NR>1 {printf "%s/%s/%.2f\n", $1, $2, $3/1024, $4/1024}`.text()
@@ -126,5 +127,10 @@ export class Apps {
   async status() {
     await this.updateUsage()
     return { apps: this.list.map(a => a.status) }
+  }
+  get(name: string) {
+    const i = this.list.findIndex(a => a.status.name === name)
+    if (i === -1) throw 'app not found'
+    return this.list[i]
   }
 }
