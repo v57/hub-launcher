@@ -46,13 +46,16 @@ class RunningApp {
   }
   async launch() {
     try {
+      this.status.isRunning = true
       const process = launch(this.data)
       this.process = process
       const code = await process.exited
+      this.status.isRunning = false
       delete this.process
       if (code === 0 || process.killed) return
       console.log('Process completed', code, process.killed)
     } catch (e) {
+      this.status.isRunning = false
       delete this.process
       this.status.crashes += 1
       console.log('Process exited with error')
