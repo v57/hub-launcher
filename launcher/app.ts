@@ -105,9 +105,11 @@ export class Apps {
   async create(config: App) {
     const app = new RunningApp(config)
     await app.install()
-    app.start()
     this.list.push(app)
-    this.save()
+    if (config.active) {
+      app.start()
+    }
+    await this.save()
   }
   async uninstall(name: string) {
     const app = this.get(name)
