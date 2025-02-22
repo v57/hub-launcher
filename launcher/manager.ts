@@ -1,6 +1,6 @@
 import { Git } from './git'
 import { $, type Subprocess } from 'bun'
-import { rm } from 'node:fs/promises'
+import { rm, exists } from 'node:fs/promises'
 
 interface ManagerType<T> {
   install(setup: T): Promise<void>
@@ -24,7 +24,8 @@ const bun: ManagerType<IBun> = {
     const git = new Git(`https://github.com/${setup.repo}`)
     await git.clone()
     await git.changeCommit(setup.commit)
-    await $`bun i --production`.cwd(git.directory)
+    const didInstall = await exists(`${git.directory}/node_modules`)
+    if (!didInstall) await $`bun i --production`.cwd(git.directory)
   },
   async uninstall(setup: IBun) {
     const git = new Git(`https://github.com/${setup.repo}`)
