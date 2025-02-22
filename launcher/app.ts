@@ -1,5 +1,5 @@
 import { type Subprocess, $ } from 'bun'
-import { install, launch, type AppSetup } from './launcher'
+import { install, launch, type AppSetup } from './manager'
 
 interface AppInfo {
   name: string
