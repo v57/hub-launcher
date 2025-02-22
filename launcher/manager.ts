@@ -83,7 +83,7 @@ export type AppSetup = TBun | TSh
 export function install(setup: AppSetup): Promise<any> {
   return (manager as any)[setup.type].install(setup)
 }
-export function uninstall(setup: AppSetup): Subprocess<'ignore', 'pipe', 'inherit'> {
+export function uninstall(setup: AppSetup): Promise<any> {
   return (manager as any)[setup.type].uninstall(setup)
 }
 export function launch(setup: AppSetup): Subprocess<'ignore', 'pipe', 'inherit'> {

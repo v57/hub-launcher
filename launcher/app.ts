@@ -1,5 +1,5 @@
 import { type Subprocess, $ } from 'bun'
-import { install, launch, type AppSetup } from './manager'
+import { install, uninstall, launch, type AppSetup } from './manager'
 
 interface AppInfo {
   name: string
@@ -29,6 +29,9 @@ class RunningApp {
   }
   async install() {
     await install(this.data)
+  }
+  async uninstall() {
+    await uninstall(this.data)
   }
   async start() {
     if (this.data.restarts) {
@@ -105,6 +108,17 @@ export class Apps {
     app.start()
     this.list.push(app)
     this.save()
+  }
+  async uninstall(name: string) {
+    const app = this.get(name)
+    if (!app) return
+    await app.stop()
+    await app.uninstall()
+    const index = this.list.findIndex(a => a.data.name === name)
+    if (index >= 0) {
+      this.list.splice(index, 1)
+      await this.save()
+    }
   }
   async save() {
     await Bun.file('launch.json').write(
