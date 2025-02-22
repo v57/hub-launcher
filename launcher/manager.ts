@@ -73,7 +73,9 @@ const sh: ManagerType<ISh> = {
     }
   },
   launch(setup: ISh) {
-    return Bun.spawn(setup.run.split(' '))
+    const home = (Bun.env.HOME as string) + '/'
+    const cmds = setup.run.split(' ').map(a => (a.startsWith('~/') ? a.replace('~/', home) : a))
+    return Bun.spawn(cmds)
   },
 }
 
