@@ -99,6 +99,13 @@ export class Apps {
       this.list.push(app)
     }
   }
+  async create(config: App) {
+    const app = new RunningApp(config)
+    await app.install()
+    app.start()
+    this.list.push(app)
+    this.save()
+  }
   async save() {
     await Bun.file('launch.json').write(
       JSON.stringify(
