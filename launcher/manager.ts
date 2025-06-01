@@ -8,12 +8,16 @@ interface ManagerType<T> {
   launch(setup: T): Subprocess
 }
 
+interface IEnv {
+  env?: Record<string, string>
+}
+
 // MARK: Bun manager
 interface IGithub {
   repo: string
   commit?: string
 }
-interface IBun extends IGithub {
+interface IBun extends IGithub, IEnv {
   command?: string
 }
 interface TBun extends IBun {
@@ -36,6 +40,7 @@ const bun: ManagerType<IBun> = {
     return Bun.spawn({
       cmd: ['bun', setup.command ?? '.'],
       cwd: git.directory,
+      env: setup.env,
     })
   },
 }
