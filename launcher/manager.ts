@@ -46,7 +46,7 @@ const bun: ManagerType<IBun> = {
 }
 
 // MARK: Shell manager
-interface ISh {
+interface ISh extends IEnv {
   directory?: string
   install?: string[] | string
   uninstall?: string[] | string
@@ -80,7 +80,7 @@ const sh: ManagerType<ISh> = {
   launch(setup: ISh) {
     const home = (Bun.env.HOME as string) + '/'
     const cmds = setup.run.split(' ').map(a => (a.startsWith('~/') ? a.replace('~/', home) : a))
-    return Bun.spawn(cmds)
+    return Bun.spawn(cmds, { env: setup.env })
   },
 }
 
