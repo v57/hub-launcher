@@ -2,8 +2,8 @@ import { $ } from 'bun'
 import { Service } from 'hub-service'
 import { Apps } from './launcher/app'
 
-// const apps = new Apps()
-// await apps.start()
+const apps = new Apps()
+await apps.start()
 
 new Service()
   .post('launcher/update', async () => {
