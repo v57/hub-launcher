@@ -102,16 +102,25 @@ export class Apps {
       this.list.push(app)
     }
   }
-  async create(config: App) {
-    const app = new RunningApp(config)
-    await app.install()
-    this.list.push(app)
-    if (config.active) {
-      app.start()
+  async create(config: App, save: boolean = true) {
+    const installed = this.get(config.name)
+    if (installed) {
+      installed.data.active = config.active
+      installed.data.restarts = config.restarts
+      if (config.active && !installed.status.isRunning) {
+        installed.start()
+      }
+    } else {
+      const app = new RunningApp(config)
+      await app.install()
+      this.list.push(app)
+      if (config.active) {
+        app.start()
+      }
     }
-    await this.save()
+    if (save) await this.save()
   }
-  async uninstall(name: string) {
+  async uninstall(name: string, save: boolean = true) {
     const app = this.get(name)
     if (!app) return
     await app.stop()
@@ -119,7 +128,7 @@ export class Apps {
     const index = this.list.findIndex(a => a.data.name === name)
     if (index >= 0) {
       this.list.splice(index, 1)
-      await this.save()
+      if (save) await this.save()
     }
   }
   async save() {
@@ -156,9 +165,36 @@ export class Apps {
     await this.updateUsage()
     return { apps: this.list.map(a => a.status) }
   }
-  get(name: string) {
+  get(name: string): RunningApp {
     const i = this.list.findIndex(a => a.status.name === name)
     if (i === -1) throw 'app not found'
     return this.list[i]
+  }
+  async pro(key: string) {
+    await this.uninstall('Hub Lite', false)
+    await this.create(
+      {
+        name: 'Hub Pro',
+        type: 'bun',
+        command: 'start',
+        repo: 'v57/hub-pro',
+        active: true,
+        restarts: true,
+      },
+      false,
+    )
+    await this.create(
+      {
+        name: 'Hub Auth',
+        type: 'bun',
+        command: 'start',
+        repo: 'v57/hub-auth',
+        active: true,
+        restarts: true,
+        env: { HUBOWNER: key },
+      },
+      false,
+    )
+    await this.save()
   }
 }

@@ -18,6 +18,7 @@ new Service()
   })
   .post('launcher/info', () => apps.info())
   .post('launcher/status', () => apps.status())
+  .post('launcher/pro', key => apps.pro(key))
   .post('launcher/app/stop', async name => {
     await apps.get(name).stop()
     await apps.save()
