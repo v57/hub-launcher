@@ -28,9 +28,11 @@ class RunningApp {
     }
   }
   async install() {
+    console.log('Installing', this.data.name)
     await install(this.data)
   }
   async uninstall() {
+    console.log('Uninstalling', this.data.name)
     await uninstall(this.data)
   }
   async start() {
@@ -48,6 +50,7 @@ class RunningApp {
     }
   }
   async launch() {
+    console.log('Launching', this.data.name)
     try {
       this.data.active = true
       this.status.isRunning = true
@@ -63,10 +66,12 @@ class RunningApp {
       delete this.process
       this.status.crashes += 1
       console.log('Process exited with error')
+      console.log(e)
       throw e
     }
   }
   async stop() {
+    console.log('Stopping', this.data.name)
     this.data.active = false
     this.process?.kill()
   }
