@@ -46,7 +46,9 @@ class RunningApp {
         }
       }
     } else {
-      await this.launch()
+      try {
+        await this.launch()
+      } catch {}
     }
   }
   async launch() {
