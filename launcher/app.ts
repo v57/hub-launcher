@@ -130,7 +130,7 @@ export class Apps {
     if (save) await this.save()
   }
   async uninstall(name: string, save: boolean = true) {
-    const app = this.get(name)
+    const app = this.optional(name)
     if (!app) return
     await app.stop()
     await app.uninstall()
@@ -209,6 +209,7 @@ export class Apps {
       },
       false,
     )
+    await this.uninstall('Hub Lite', false)
     await this.save()
   }
 }
