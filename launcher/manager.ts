@@ -40,7 +40,7 @@ const bun: ManagerType<IBun> = {
     return Bun.spawn({
       cmd: ['bun', setup.command ?? '.'],
       cwd: git.directory,
-      env: setup.env,
+      env: setup.env ? { ...process.env, ...setup.env } : undefined,
     })
   },
 }
@@ -80,7 +80,8 @@ const sh: ManagerType<ISh> = {
   launch(setup: ISh) {
     const home = (Bun.env.HOME as string) + '/'
     const cmds = setup.run.split(' ').map(a => (a.startsWith('~/') ? a.replace('~/', home) : a))
-    return Bun.spawn(cmds, { env: setup.env })
+    const env = setup.env ? { ...process.env, ...setup.env } : undefined
+    return Bun.spawn(cmds, { env, stdout: 'inherit', stderr: 'inherit' })
   },
 }
 
