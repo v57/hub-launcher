@@ -102,8 +102,10 @@ export class Apps {
     const configs = await this.load()
     for (const config of configs) {
       const app = new RunningApp(config)
-      await app.install()
-      app.start()
+      if (config.active) {
+        await app.install()
+        app.start()
+      }
       this.list.push(app)
     }
   }
