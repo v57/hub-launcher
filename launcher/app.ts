@@ -202,7 +202,6 @@ export class Apps {
       {
         name: 'Hub Auth',
         type: 'bun',
-        command: 'start',
         repo: 'v57/hub-auth',
         active: true,
         restarts: true,
