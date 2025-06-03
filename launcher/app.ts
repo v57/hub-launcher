@@ -108,7 +108,7 @@ export class Apps {
     }
   }
   async create(config: App, save: boolean = true) {
-    const installed = this.get(config.name)
+    const installed = this.optional(config.name)
     if (installed) {
       installed.data.active = config.active
       installed.data.restarts = config.restarts
@@ -175,8 +175,14 @@ export class Apps {
     if (i === -1) throw 'app not found'
     return this.list[i]
   }
+  optional(name: string): RunningApp | undefined {
+    const i = this.list.findIndex(a => a.status.name === name)
+    if (i === -1) return
+    return this.list[i]
+  }
   async pro(key: string) {
-    await this.uninstall('Hub Lite', false)
+    console.log('Upgrading to Hub Pro')
+    await this.optional('Hub Lite')?.stop()
     await this.create(
       {
         name: 'Hub Pro',
