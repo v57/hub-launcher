@@ -23,7 +23,7 @@
 
     "channel": ["channel@github:v57/channel#6d1535c", { "peerDependencies": { "typescript": "^5.0.0" } }, "v57-channel-6d1535c"],
 
-    "hub-service": ["hub-service@github:v57/hub-service#fecbb9a", { "dependencies": { "channel": "v57/channel" }, "peerDependencies": { "typescript": "^5.8.3" } }, "v57-hub-service-fecbb9a"],
+    "hub-service": ["hub-service@github:v57/hub-service#0cf4b4f", { "dependencies": { "channel": "v57/channel" }, "peerDependencies": { "typescript": "^5.8.3" } }, "v57-hub-service-0cf4b4f"],
 
     "typescript": ["typescript@5.7.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw=="],
 
