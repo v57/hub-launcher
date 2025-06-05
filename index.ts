@@ -16,8 +16,8 @@ new Service()
   .post('launcher/stop', async () => {
     setTimeout(() => process.exit(0), 500)
   })
-  .post('launcher/info', () => apps.info())
-  .post('launcher/status', () => apps.status())
+  .stream('launcher/info', () => apps.infoStream.makeIterator())
+  .stream('launcher/status', () => apps.statusStream.makeIterator())
   .post('launcher/pro', key => apps.pro(key))
   .post('launcher/app/stop', async name => {
     await apps.get(name).stop()

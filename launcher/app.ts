@@ -1,5 +1,6 @@
 import { type Subprocess, $ } from 'bun'
 import { install, uninstall, launch, type AppSetup } from './manager'
+import { LazyState } from 'channel/more'
 
 interface AppInfo {
   name: string
@@ -17,10 +18,12 @@ interface AppStatus {
 }
 class RunningApp {
   data: App
+  infoStream: LazyState<unknown>
   status: AppStatus
   process?: Subprocess
-  constructor(data: App) {
+  constructor(data: App, infoStream: LazyState<unknown>) {
     this.data = data
+    this.infoStream = infoStream
     this.status = {
       name: data.name,
       isRunning: false,
@@ -56,10 +59,12 @@ class RunningApp {
     try {
       this.data.active = true
       this.status.isRunning = true
+      this.infoStream.setNeedsUpdate()
       const process = launch(this.data)
       this.process = process
       const code = await process.exited
       this.status.isRunning = false
+      this.infoStream.setNeedsUpdate()
       delete this.process
       if (code === 0 || process.killed) return
       console.log('Process completed', code, process.killed)
@@ -67,6 +72,7 @@ class RunningApp {
       this.status.isRunning = false
       delete this.process
       this.status.crashes += 1
+      this.infoStream.setNeedsUpdate()
       console.log('Process exited with error')
       console.log(e)
       throw e
@@ -76,11 +82,14 @@ class RunningApp {
     console.log('Stopping', this.data.name)
     this.data.active = false
     this.process?.kill()
+    this.infoStream.setNeedsUpdate()
   }
 }
 
 export class Apps {
   list: RunningApp[]
+  statusStream = new LazyState(() => this.status()).delay(0.5).alwaysNeedsUpdate()
+  infoStream = new LazyState(() => this.info())
   constructor() {
     this.list = []
   }
@@ -103,7 +112,7 @@ export class Apps {
   async start() {
     const configs = await this.load()
     for (const config of configs) {
-      const app = new RunningApp(config)
+      const app = new RunningApp(config, this.infoStream)
       if (config.active) {
         await app.install()
         app.start()
@@ -120,12 +129,13 @@ export class Apps {
         installed.start()
       }
     } else {
-      const app = new RunningApp(config)
+      const app = new RunningApp(config, this.infoStream)
       await app.install()
       this.list.push(app)
       if (config.active) {
         app.start()
       }
+      this.infoStream.setNeedsUpdate()
     }
     if (save) await this.save()
   }
@@ -137,6 +147,7 @@ export class Apps {
     const index = this.list.findIndex(a => a.data.name === name)
     if (index >= 0) {
       this.list.splice(index, 1)
+      this.infoStream.setNeedsUpdate()
       if (save) await this.save()
     }
   }
