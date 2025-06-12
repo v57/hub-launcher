@@ -24,10 +24,12 @@ export class Git {
   }
   async checkForUpdates(): Promise<boolean> {
     try {
-      const response =
-        await $`git fetch origin >/dev/null 2>&1 && git rev-list HEAD..origin/$(git rev-parse --abbrev-ref HEAD) --count`.text()
+      await $`git fetch origin >/dev/null`.cwd(this.directory).text()
+      const response = await $`git rev-list HEAD..origin/$(git rev-parse --abbrev-ref HEAD) --count`
+        .cwd(this.directory)
+        .text()
       return Number(response) > 0
-    } catch {
+    } catch (error) {
       return false
     }
   }
