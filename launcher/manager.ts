@@ -58,24 +58,10 @@ interface TSh extends ISh {
 
 const sh: ManagerType<ISh> = {
   async install(setup: ISh) {
-    if (!setup.install) return
-    if (typeof setup.install === 'string') {
-      await Bun.spawn(setup.install.split(' ')).exited
-    } else {
-      for (const command of setup.install) {
-        await Bun.spawn(command.split(' ')).exited
-      }
-    }
+    await runMany(setup.install)
   },
   async uninstall(setup: ISh) {
-    if (!setup.uninstall) return
-    if (typeof setup.uninstall === 'string') {
-      await Bun.spawn(setup.uninstall.split(' ')).exited
-    } else {
-      for (const command of setup.uninstall) {
-        await Bun.spawn(command.split(' ')).exited
-      }
-    }
+    await runMany(setup.uninstall)
   },
   launch(setup: ISh) {
     const home = (Bun.env.HOME as string) + '/'
@@ -83,6 +69,14 @@ const sh: ManagerType<ISh> = {
     const env = setup.env ? { ...process.env, ...setup.env } : undefined
     return Bun.spawn(cmds, { env, stdout: 'inherit', stderr: 'inherit' })
   },
+}
+function toArray<T>(value: T[] | T | undefined | null): T[] {
+  return value === undefined || value === null ? [] : Array.isArray(value) ? value : [value]
+}
+async function runMany(value: string[] | string | undefined | null) {
+  for (const command of toArray(value)) {
+    await Bun.spawn(command.split(' ')).exited
+  }
 }
 
 // MARK: Managers
