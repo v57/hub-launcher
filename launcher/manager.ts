@@ -6,6 +6,7 @@ interface ManagerType<T> {
   install(setup: T): Promise<void>
   uninstall(setup: T): Promise<void>
   checkForUpdates(setup: T): Promise<boolean>
+  update(setup: T): Promise<void>
   launch(setup: T): Subprocess
 }
 
@@ -35,6 +36,11 @@ const bun: ManagerType<IBun> = {
   async checkForUpdates(setup: IBun) {
     return new Git(`https://github.com/${setup.repo}`).checkForUpdates()
   },
+  async update(setup: IBun) {
+    const git = new Git(`https://github.com/${setup.repo}`)
+    await git.update()
+    await $`bun i --production`.cwd(git.directory)
+  },
   async uninstall(setup: IBun) {
     const git = new Git(`https://github.com/${setup.repo}`)
     await rm(git.directory, { recursive: true, force: true })
@@ -54,6 +60,7 @@ interface ISh extends IEnv {
   directory?: string
   install?: string[] | string
   checkForUpdates?: string[] | string
+  update?: string[] | string
   uninstall?: string[] | string
   run: string
 }
@@ -72,6 +79,9 @@ const sh: ManagerType<ISh> = {
     } catch {
       return false
     }
+  },
+  async update(setup: ISh) {
+    await runMany(setup.update)
   },
   async uninstall(setup: ISh) {
     await runMany(setup.uninstall)
