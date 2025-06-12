@@ -13,6 +13,7 @@ new Service()
     const res = await $`git fetch --dry-run`
     return res.stderr.length > 0
   })
+  .post('launcher/update/check/all', () => apps.checkForUpdates())
   .post('launcher/stop', async () => {
     setTimeout(() => process.exit(0), 500)
   })
