@@ -18,6 +18,7 @@ interface AppStatus {
   crashes: number
   cpu?: number
   memory?: number
+  started?: Date
 }
 class RunningApp {
   data: App
@@ -89,6 +90,7 @@ class RunningApp {
     try {
       this.data.active = true
       this.status.isRunning = true
+      this.status.started = new Date()
       this.infoStream.setNeedsUpdate()
       const process = launch(this.data)
       this.process = process
@@ -99,6 +101,7 @@ class RunningApp {
       if (code === 0 || process.killed) return
       console.log('Process completed', code, process.killed)
     } catch (e) {
+      delete this.status.started
       this.status.isRunning = false
       delete this.process
       this.status.crashes += 1
