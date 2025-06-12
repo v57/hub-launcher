@@ -106,11 +106,17 @@ async function runMany(value: string[] | string | undefined | null) {
 const manager = { bun, sh }
 export type AppSetup = TBun | TSh
 
-export function install(setup: AppSetup): Promise<any> {
+export function install(setup: AppSetup): Promise<void> {
   return (manager as any)[setup.type].install(setup)
 }
-export function uninstall(setup: AppSetup): Promise<any> {
+export function uninstall(setup: AppSetup): Promise<void> {
   return (manager as any)[setup.type].uninstall(setup)
+}
+export function checkForUpdates(setup: AppSetup): Promise<boolean> {
+  return (manager as any)[setup.type].checkForUpdates(setup)
+}
+export function update(setup: AppSetup): Promise<void> {
+  return (manager as any)[setup.type].update(setup)
 }
 export function launch(setup: AppSetup): Subprocess<'ignore', 'pipe', 'inherit'> {
   return (manager as any)[setup.type].launch(setup)

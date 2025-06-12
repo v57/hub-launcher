@@ -1,11 +1,12 @@
 import { type Subprocess, $ } from 'bun'
-import { install, uninstall, launch, type AppSetup } from './manager'
+import { install, checkForUpdates, update, uninstall, launch, type AppSetup } from './manager'
 import { LazyState } from 'channel/more'
 
 interface AppInfo {
   name: string
   active: boolean
   restarts: boolean
+  updateAvailable?: boolean
 }
 type App = AppInfo & AppSetup
 
@@ -37,6 +38,15 @@ class RunningApp {
   async uninstall() {
     console.log('Uninstalling', this.data.name)
     await uninstall(this.data)
+  }
+  async checkForUpdates(): Promise<boolean> {
+    try {
+      const available = await checkForUpdates(this.data)
+      if (available) this.data.updateAvailable = true
+      return available
+    } catch {
+      return false
+    }
   }
   async start() {
     if (this.data.restarts) {
@@ -138,6 +148,18 @@ export class Apps {
       this.infoStream.setNeedsUpdate()
     }
     if (save) await this.save()
+  }
+  async checkForUpdates(): Promise<void> {
+    let toUpdate = 0
+    for (const app of this.list) {
+      if (!app.data.updateAvailable) {
+        if (await app.checkForUpdates()) toUpdate += 1
+      }
+    }
+    if (toUpdate) {
+      await this.save()
+      this.infoStream.setNeedsUpdate()
+    }
   }
   async uninstall(name: string, save: boolean = true) {
     const app = this.optional(name)
