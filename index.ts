@@ -14,6 +14,7 @@ new Service()
     return res.stderr.length > 0
   })
   .post('launcher/update/check/all', () => apps.checkForUpdates())
+  .post('launcher/update/all', () => apps.update())
   .post('launcher/stop', async () => {
     setTimeout(() => process.exit(0), 500)
   })
