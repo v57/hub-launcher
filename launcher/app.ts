@@ -13,6 +13,8 @@ type App = AppInfo & AppSetup
 interface AppStatus {
   name: string
   isRunning: boolean
+  checkingForUpdates?: boolean
+  updating?: boolean
   crashes: number
   cpu?: number
   memory?: number
@@ -36,11 +38,17 @@ class RunningApp {
     await install(this.data)
   }
   async update() {
+    if (this.status.updating) return
+    this.status.updating = true
     console.log('Updating', this.data.name)
-    await update(this.data)
-    if (this.status.isRunning) {
-      await this.stop()
-      await this.start()
+    try {
+      await update(this.data)
+      if (this.status.isRunning) {
+        await this.stop()
+        await this.start()
+      }
+    } finally {
+      delete this.status.updating
     }
   }
   async uninstall() {
@@ -48,12 +56,16 @@ class RunningApp {
     await uninstall(this.data)
   }
   async checkForUpdates(): Promise<boolean> {
+    if (this.status.checkingForUpdates) return false
+    this.status.checkingForUpdates = true
     try {
       const available = await checkForUpdates(this.data)
       if (available) this.data.updateAvailable = true
       return available
     } catch {
       return false
+    } finally {
+      delete this.status.checkingForUpdates
     }
   }
   async start() {
