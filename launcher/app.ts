@@ -35,6 +35,14 @@ class RunningApp {
     console.log('Installing', this.data.name)
     await install(this.data)
   }
+  async update() {
+    console.log('Updating', this.data.name)
+    await update(this.data)
+    if (this.status.isRunning) {
+      await this.stop()
+      await this.start()
+    }
+  }
   async uninstall() {
     console.log('Uninstalling', this.data.name)
     await uninstall(this.data)
@@ -159,6 +167,11 @@ export class Apps {
     if (toUpdate) {
       await this.save()
       this.infoStream.setNeedsUpdate()
+    }
+  }
+  async update(): Promise<void> {
+    for (const app of this.list) {
+      if (app.data.updateAvailable) await app.update()
     }
   }
   async uninstall(name: string, save: boolean = true) {
