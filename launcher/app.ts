@@ -158,15 +158,16 @@ export class Apps {
     if (save) await this.save()
   }
   async checkForUpdates(): Promise<void> {
-    let toUpdate = 0
+    let tasks: Promise<boolean>[] = []
     for (const app of this.list) {
-      if (!app.data.updateAvailable) {
-        if (await app.checkForUpdates()) toUpdate += 1
-      }
+      if (!app.data.updateAvailable) tasks.push(app.checkForUpdates())
     }
-    if (toUpdate) {
-      await this.save()
-      this.infoStream.setNeedsUpdate()
+    for (const result of await Promise.allSettled(tasks)) {
+      if (result.status == 'fulfilled' && result.value) {
+        await this.save()
+        this.infoStream.setNeedsUpdate()
+        return
+      }
     }
   }
   async update(): Promise<void> {
