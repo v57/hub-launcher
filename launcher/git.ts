@@ -22,6 +22,15 @@ export class Git {
     if (!name) return
     await $`git reset --hard ${encodeURI(name)}`.cwd(this.directory)
   }
+  async checkForUpdates(): Promise<boolean> {
+    try {
+      const response =
+        await $`git fetch origin >/dev/null 2>&1 && git rev-list HEAD..origin/$(git rev-parse --abbrev-ref HEAD) --count`.text()
+      return Number(response) > 0
+    } catch {
+      return false
+    }
+  }
   async update() {
     await $`git pull"`.cwd(this.directory)
   }
