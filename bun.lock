@@ -21,7 +21,7 @@
 
     "bun-types": ["bun-types@1.2.16", "", { "dependencies": { "@types/node": "*" } }, "sha512-ciXLrHV4PXax9vHvUrkvun9VPVGOVwbbbBF/Ev1cXz12lyEZMoJpIJABOfPcN9gDJRaiKF9MVbSygLg4NXu3/A=="],
 
-    "channel": ["channel@github:v57/channel#a4ba2af", { "peerDependencies": { "typescript": "^5.0.0" } }, "v57-channel-a4ba2af"],
+    "channel": ["channel@github:v57/channel#42d2d0f", { "peerDependencies": { "typescript": "^5.0.0" } }, "v57-channel-42d2d0f"],
 
     "hub-service": ["hub-service@github:v57/hub-service#e13ed5c", { "dependencies": { "channel": "v57/channel" }, "peerDependencies": { "typescript": "^5.8.3" } }, "v57-hub-service-e13ed5c"],
 
