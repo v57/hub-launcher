@@ -233,7 +233,9 @@ export class Apps {
     return { apps: this.list.map(a => a.data) }
   }
   async status() {
-    await this.updateUsage()
+    try {
+      await this.updateUsage()
+    } catch {}
     return { apps: this.list.map(a => a.status) }
   }
   get(name: string): RunningApp {
