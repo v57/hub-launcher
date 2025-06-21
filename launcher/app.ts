@@ -214,9 +214,8 @@ export class Apps {
   async updateUsage() {
     const pids: number[] = this.list.map(a => a.process?.pid ?? 0).filter(a => a)
     if (!pids.length) return
-    const res = await $`ps -p ${pids.join(
-      ',',
-    )} -o pid,%cpu,rss,vsz | awk 'NR>1 {printf "%s/%s/%.2f\n", $1, $2, $3/1024, $4/1024}`.text()
+    const res =
+      await $`ps -p ${pids.join(',')} -o pid,%cpu,rss,vsz | awk 'NR>1 {printf "%s/%s/%.2f\n", $1, $2, $3/1024, $4/1024}`.text()
     for (const a of res.split('\n')) {
       const i = a.split('/')
       const pid = Number(i[0])
