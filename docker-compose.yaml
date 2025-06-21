@@ -5,7 +5,7 @@ services:
     volumes:
       - ./:/app
     ports:
-      - 127.0.0.1:1997:1997
+      - 127.0.0.1:${PORT:-1997}:1997
     environment:
       - HUBLISTEN=0.0.0.0:1997
     restart: always
