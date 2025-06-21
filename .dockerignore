@@ -1,0 +1,6 @@
+.DS_Store
+.git/
+launch.json
+apps/
+auth
+node_modules
