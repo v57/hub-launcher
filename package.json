@@ -3,8 +3,9 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "docker-build": "docker build -t hub .",
-    "docker": "bash -c 'PORT=${1:-1997} && docker run -p 127.0.0.1:$PORT:1997 --name hub${PORT} --restart=always hub' --"
+    "build": "docker build -t hub .",
+    "stop": "bash -c 'PORT=${1:-1997} && docker stop hub${PORT}' --",
+    "docker": "bash -c 'PORT=${1:-1997} && docker run -d -p 127.0.0.1:$PORT:1997 --name hub${PORT} --restart=always hub' --"
   },
   "devDependencies": {
     "@types/bun": "latest"
