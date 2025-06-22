@@ -5,7 +5,7 @@
   "scripts": {
     "build": "docker build -t hub .",
     "stop": "bash -c 'PORT=${1:-1997} && docker stop hub${PORT}' --",
-    "docker": "bash -c 'PORT=${1:-1997} && docker run -d -p 127.0.0.1:$PORT:1997 --name hub${PORT} --restart=always hub' --"
+    "docker": "bash -c 'PORT=${1:-1997} && docker start hub${PORT} 2>/dev/null || docker run -d -p 127.0.0.1:$PORT:1997 --name hub${PORT} --restart=always hub' --"
   },
   "devDependencies": {
     "@types/bun": "latest"
