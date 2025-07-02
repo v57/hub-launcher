@@ -187,7 +187,11 @@ export class Apps {
   }
   async update(): Promise<void> {
     for (const app of this.list) {
-      if (app.data.updateAvailable) await app.update()
+      if (app.data.updateAvailable) {
+        await app.update()
+        delete app.data.updateAvailable
+        this.infoStream.setNeedsUpdate()
+      }
     }
   }
   async uninstall(name: string, save: boolean = true) {
