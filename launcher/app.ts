@@ -201,8 +201,8 @@ export class Apps {
   async update(): Promise<void> {
     for (const app of this.list) {
       if (app.data.updateAvailable) {
-        await app.update()
         delete app.data.updateAvailable
+        await app.update()
         this.infoStream.setNeedsUpdate()
       }
     }
