@@ -10,6 +10,12 @@ interface AppInfo {
 }
 type App = AppInfo & AppSetup
 
+interface Status {
+  apps: AppStatus[]
+}
+interface InfoStatus {
+  apps: App[]
+}
 interface AppStatus {
   name: string
   isRunning: boolean
@@ -22,11 +28,11 @@ interface AppStatus {
 }
 class RunningApp {
   data: App
-  infoStream: LazyState<unknown>
+  infoStream: LazyState<InfoStatus>
   status: AppStatus
   process?: Subprocess
   onStop?: Promise<void>
-  constructor(data: App, infoStream: LazyState<unknown>) {
+  constructor(data: App, infoStream: LazyState<InfoStatus>) {
     this.data = data
     this.infoStream = infoStream
     this.status = {
@@ -42,11 +48,14 @@ class RunningApp {
   async update() {
     if (this.status.updating) return
     this.status.updating = true
+    this.infoStream.setNeedsUpdate()
     console.log('Updating', this.data.name)
     try {
       await update(this.data)
       if (this.status.isRunning) {
         await this.stop()
+        delete this.status.updating
+        this.infoStream.setNeedsUpdate()
         await this.start()
       }
     } finally {
@@ -125,8 +134,8 @@ class RunningApp {
 
 export class Apps {
   list: RunningApp[]
-  statusStream = new LazyState(() => this.status()).delay(0.5).alwaysNeedsUpdate()
-  infoStream = new LazyState(() => this.info())
+  statusStream = new LazyState<Status>(() => this.status()).delay(0.5).alwaysNeedsUpdate()
+  infoStream = new LazyState<InfoStatus>(() => this.info())
   constructor() {
     this.list = []
   }
