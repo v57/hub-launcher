@@ -141,11 +141,11 @@ class RunningApp {
   async stop() {
     console.log('Stopping', this.data.name)
     this.data.active = false
-    for (const process of this.processes) {
+    for (const process of [...this.processes] /* Weird */) {
       process.kill()
       await new Promise<void>(r => process.exited.finally(() => r()))
+      this.infoStream.setNeedsUpdate()
     }
-    this.infoStream.setNeedsUpdate()
   }
   async setInstances(instances: number) {
     if (instances > 1024) throw 'too many instances'
