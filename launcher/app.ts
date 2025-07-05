@@ -7,6 +7,7 @@ interface AppInfo {
   active: boolean
   restarts: boolean
   updateAvailable?: boolean
+  instances?: number
 }
 type App = AppInfo & AppSetup
 
@@ -35,6 +36,7 @@ class RunningApp {
   infoStream: LazyState<InfoStatus>
   status: AppStatus
   processes: Subprocess[] = []
+  launched = 0
   constructor(data: App, infoStream: LazyState<InfoStatus>) {
     this.data = data
     this.infoStream = infoStream
@@ -83,11 +85,20 @@ class RunningApp {
       delete this.status.checkingForUpdates
     }
   }
-  async start() {
+  start() {
+    const instances = this.data.instances ?? 1
+    if (instances > 1024) throw `too many instances for ${this.data.name}`
+    while (instances > this.launched) {
+      this.startOne()
+    }
+  }
+  private async startOne() {
+    this.launched += 1
     if (this.data.restarts) {
       while (true) {
         try {
           await this.launch()
+          this.launched -= 1
           return
         } catch {
           await new Promise(a => setTimeout(a, 1000))
@@ -97,9 +108,10 @@ class RunningApp {
       try {
         await this.launch()
       } catch {}
+      this.launched -= 1
     }
   }
-  async launch() {
+  private async launch() {
     console.log('Launching', this.data.name)
     try {
       this.data.active = true
@@ -139,6 +151,26 @@ class RunningApp {
       await new Promise<void>(r => process.exited.finally(() => r()))
     }
     this.infoStream.setNeedsUpdate()
+  }
+  async setInstances(instances: number) {
+    if (instances > 1024) throw 'too many instances'
+    const i = instances > 0 ? instances : 1
+    if (i > 1) {
+      this.data.instances = instances
+    } else {
+      delete this.data.instances
+    }
+    while (i > this.launched) {
+      this.startOne()
+      this.infoStream.setNeedsUpdate()
+    }
+    while (this.launched > i) {
+      const process = this.processes.at(-1)
+      if (!process) return
+      process.kill()
+      await new Promise<void>(r => process.exited.finally(() => r()))
+      this.infoStream.setNeedsUpdate()
+    }
   }
 }
 
@@ -188,9 +220,7 @@ export class Apps {
       const app = new RunningApp(config, this.infoStream)
       await app.install()
       this.list.push(app)
-      if (config.active) {
-        app.start()
-      }
+      if (config.active) app.start()
       this.infoStream.setNeedsUpdate()
     }
     if (save) await this.save()
