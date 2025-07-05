@@ -31,7 +31,6 @@ class RunningApp {
   infoStream: LazyState<InfoStatus>
   status: AppStatus
   process?: Subprocess
-  onStop?: Promise<void>
   constructor(data: App, infoStream: LazyState<InfoStatus>) {
     this.data = data
     this.infoStream = infoStream
@@ -104,7 +103,6 @@ class RunningApp {
       this.infoStream.setNeedsUpdate()
       const process = launch(this.data)
       this.process = process
-      this.onStop = new Promise(r => process.exited.finally(r))
       const code = await process.exited
       this.status.isRunning = false
       this.infoStream.setNeedsUpdate()
@@ -125,9 +123,11 @@ class RunningApp {
   async stop() {
     console.log('Stopping', this.data.name)
     this.data.active = false
-    const promise = this.onStop
-    this.process?.kill()
-    await promise
+    const process = this.process
+    if (process) {
+      process.kill()
+      await new Promise<void>(r => process.exited.finally(() => r()))
+    }
     this.infoStream.setNeedsUpdate()
   }
 }
