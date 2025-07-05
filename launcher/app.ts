@@ -22,15 +22,19 @@ interface AppStatus {
   checkingForUpdates?: boolean
   updating?: boolean
   crashes: number
-  cpu?: number
-  memory?: number
+  processes: ProcessStatus[]
   started?: Date
+}
+interface ProcessStatus {
+  pid: number
+  cpu: number
+  memory: number
 }
 class RunningApp {
   data: App
   infoStream: LazyState<InfoStatus>
   status: AppStatus
-  process?: Subprocess
+  processes: Subprocess[] = []
   constructor(data: App, infoStream: LazyState<InfoStatus>) {
     this.data = data
     this.infoStream = infoStream
@@ -38,6 +42,7 @@ class RunningApp {
       name: data.name,
       isRunning: false,
       crashes: 0,
+      processes: [],
     }
   }
   async install() {
@@ -102,17 +107,23 @@ class RunningApp {
       this.status.started = new Date()
       this.infoStream.setNeedsUpdate()
       const process = launch(this.data)
-      this.process = process
-      const code = await process.exited
-      this.status.isRunning = false
-      this.infoStream.setNeedsUpdate()
-      delete this.process
-      if (code === 0 || process.killed) return
-      console.log('Process completed', code, process.killed)
+      this.processes.push(process)
+      try {
+        const code = await process.exited
+        this.status.isRunning = false
+        this.infoStream.setNeedsUpdate()
+        this.processes.removeFirst(a => a === process)
+        this.status.processes.removeFirst(a => a.pid === process.pid)
+        if (code === 0 || process.killed) return
+        console.log('Process completed', code, process.killed)
+      } catch (e) {
+        this.processes.removeFirst(a => a === process)
+        this.status.processes.removeFirst(a => a.pid === process.pid)
+        throw e
+      }
     } catch (e) {
       delete this.status.started
       this.status.isRunning = false
-      delete this.process
       this.status.crashes += 1
       this.infoStream.setNeedsUpdate()
       console.log('Process exited with error')
@@ -123,8 +134,7 @@ class RunningApp {
   async stop() {
     console.log('Stopping', this.data.name)
     this.data.active = false
-    const process = this.process
-    if (process) {
+    for (const process of this.processes) {
       process.kill()
       await new Promise<void>(r => process.exited.finally(() => r()))
     }
@@ -229,18 +239,27 @@ export class Apps {
     )
   }
   async updateUsage() {
-    const pids: number[] = this.list.map(a => a.process?.pid ?? 0).filter(a => a)
+    const pids: number[] = this.list.flatMap(a => a.processes.map(a => a.pid))
     if (!pids.length) return
     const res =
       await $`ps -p ${pids.join(',')} -o pid,%cpu,rss,vsz | awk 'NR>1 {printf "%s/%s/%.2f\n", $1, $2, $3/1024, $4/1024}`.text()
+
     for (const a of res.split('\n')) {
       const i = a.split('/')
       const pid = Number(i[0])
       if (pid) {
-        const app = this.list.find(a => a.process?.pid === pid)
-        if (app) {
-          app.status.cpu = Number(i[1])
-          app.status.memory = Number(i[2])
+        const app = this.list.find(a => a.processes.findIndex(a => a.pid === pid) !== -1)
+        if (!app) continue
+        const status: ProcessStatus | undefined = app.status.processes.find(a => a.pid === pid)
+        if (status) {
+          status.cpu = Number(i[1])
+          status.memory = Number(i[2])
+        } else {
+          app.status.processes.push({
+            pid,
+            cpu: Number(i[1]),
+            memory: Number(i[2]),
+          })
         }
       }
     }
@@ -291,5 +310,19 @@ export class Apps {
     )
     await this.uninstall('Hub Lite', false)
     await this.save()
+  }
+}
+
+declare global {
+  interface Array<T> {
+    removeFirst(check: (element: T) => boolean): void
+  }
+}
+
+if (!Array.prototype.removeFirst) {
+  Array.prototype.removeFirst = function <T>(this: T[], check: (element: T) => boolean) {
+    const index = this.findIndex(check)
+    if (index === -1) return
+    this.splice(index, 1)
   }
 }
