@@ -19,7 +19,6 @@ interface InfoStatus {
 }
 interface AppStatus {
   name: string
-  isRunning: boolean
   checkingForUpdates?: boolean
   updating?: boolean
   crashes: number
@@ -42,7 +41,6 @@ class RunningApp {
     this.infoStream = infoStream
     this.status = {
       name: data.name,
-      isRunning: false,
       crashes: 0,
       processes: [],
     }
@@ -58,11 +56,11 @@ class RunningApp {
     console.log('Updating', this.data.name)
     try {
       await update(this.data)
-      if (this.status.isRunning) {
+      if (this.data.active) {
         await this.stop()
         delete this.status.updating
         this.infoStream.setNeedsUpdate()
-        await this.start()
+        this.start()
       }
     } finally {
       delete this.status.updating
@@ -115,14 +113,12 @@ class RunningApp {
     console.log('Launching', this.data.name)
     try {
       this.data.active = true
-      this.status.isRunning = true
       this.status.started = new Date()
       this.infoStream.setNeedsUpdate()
       const process = launch(this.data)
       this.processes.push(process)
       try {
         const code = await process.exited
-        this.status.isRunning = false
         this.infoStream.setNeedsUpdate()
         this.processes.removeFirst(a => a === process)
         this.status.processes.removeFirst(a => a.pid === process.pid)
@@ -135,7 +131,6 @@ class RunningApp {
       }
     } catch (e) {
       delete this.status.started
-      this.status.isRunning = false
       this.status.crashes += 1
       this.infoStream.setNeedsUpdate()
       console.log('Process exited with error')
@@ -213,9 +208,7 @@ export class Apps {
     if (installed) {
       installed.data.active = config.active
       installed.data.restarts = config.restarts
-      if (config.active && !installed.status.isRunning) {
-        installed.start()
-      }
+      if (config.active) installed.start()
     } else {
       const app = new RunningApp(config, this.infoStream)
       await app.install()
