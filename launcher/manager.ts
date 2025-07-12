@@ -7,11 +7,12 @@ interface ManagerType<T> {
   uninstall(setup: T): Promise<void>
   checkForUpdates(setup: T): Promise<boolean>
   update(setup: T): Promise<void>
-  launch(setup: T): Subprocess
+  launch(setup: T, settings?: AppSettings): Subprocess
 }
 
 interface IEnv {
   env?: Record<string, string>
+  envValues?: Record<string, string> // { string: placeholder }
 }
 
 // MARK: Bun manager
@@ -45,12 +46,12 @@ const bun: ManagerType<IBun> = {
     const git = new Git(`https://github.com/${setup.repo}`)
     await rm(git.directory, { recursive: true, force: true })
   },
-  launch(setup: IBun) {
+  launch(setup: IBun, settings?: AppSettings) {
     const git = new Git(`https://github.com/${setup.repo}`)
     return Bun.spawn({
       cmd: ['bun', setup.command ?? '.'],
       cwd: git.directory,
-      env: setup.env ? { ...process.env, ...setup.env } : undefined,
+      env: setup.env || settings?.env ? { ...settings?.env, ...setup.env, ...process.env } : undefined,
     })
   },
 }
@@ -86,7 +87,7 @@ const sh: ManagerType<ISh> = {
   async uninstall(setup: ISh) {
     await runMany(setup.uninstall)
   },
-  launch(setup: ISh) {
+  launch(setup: ISh, settings?: AppSettings) {
     const home = (Bun.env.HOME as string) + '/'
     const cmds = setup.run.split(' ').map(a => (a.startsWith('~/') ? a.replace('~/', home) : a))
     const env = setup.env ? { ...process.env, ...setup.env } : undefined
@@ -105,6 +106,9 @@ async function runMany(value: string[] | string | undefined | null) {
 // MARK: Managers
 const manager = { bun, sh }
 export type AppSetup = TBun | TSh
+export interface AppSettings {
+  env?: Record<string, string | undefined>
+}
 
 export function install(setup: AppSetup): Promise<void> {
   return (manager as any)[setup.type].install(setup)
@@ -118,6 +122,6 @@ export function checkForUpdates(setup: AppSetup): Promise<boolean> {
 export function update(setup: AppSetup): Promise<void> {
   return (manager as any)[setup.type].update(setup)
 }
-export function launch(setup: AppSetup): Subprocess<'ignore', 'pipe', 'inherit'> {
-  return (manager as any)[setup.type].launch(setup)
+export function launch(setup: AppSetup, settings?: AppSettings): Subprocess<'ignore', 'pipe', 'inherit'> {
+  return (manager as any)[setup.type].launch(setup, settings)
 }
