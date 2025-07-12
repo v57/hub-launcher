@@ -33,6 +33,10 @@ new Service()
   })
   .post('launcher/app/create', app => apps.create(app))
   .post('launcher/app/uninstall', app => apps.uninstall(app))
+  .post('launcher/app/settings', async ({ app, settings }) => {
+    await apps.get(app).setSettings(settings)
+    await apps.save()
+  })
   .post('launcher/app/cluster', async ({ name, count }) => {
     await apps.get(name).setInstances(count)
     await apps.save()

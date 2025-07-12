@@ -57,12 +57,7 @@ class RunningApp {
     console.log('Updating', this.data.name)
     try {
       await update(this.data)
-      if (this.data.active) {
-        await this.stop()
-        delete this.status.updating
-        this.infoStream.setNeedsUpdate()
-        this.start()
-      }
+      await this.restartIfNeeded()
     } finally {
       delete this.status.updating
     }
@@ -90,6 +85,17 @@ class RunningApp {
     while (instances > this.launched) {
       this.startOne()
     }
+  }
+  async setSettings(settings: AppSettings) {
+    this.data.settings = settings
+    await this.restartIfNeeded()
+  }
+  async restartIfNeeded() {
+    if (!this.data.active) return
+    await this.stop()
+    delete this.status.updating
+    this.infoStream.setNeedsUpdate()
+    this.start()
   }
   private async startOne() {
     this.launched += 1
