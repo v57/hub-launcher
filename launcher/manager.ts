@@ -122,6 +122,6 @@ export function checkForUpdates(setup: AppSetup): Promise<boolean> {
 export function update(setup: AppSetup): Promise<void> {
   return (manager as any)[setup.type].update(setup)
 }
-export function launch(setup: AppSetup, settings?: AppSettings): Subprocess<'ignore', 'pipe', 'inherit'> {
+export function launch(setup: AppSetup, settings: AppSettings | undefined): Subprocess<'ignore', 'pipe', 'inherit'> {
   return (manager as any)[setup.type].launch(setup, settings)
 }

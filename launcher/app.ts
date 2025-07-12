@@ -1,5 +1,5 @@
 import { type Subprocess, $ } from 'bun'
-import { install, checkForUpdates, update, uninstall, launch, type AppSetup } from './manager'
+import { install, checkForUpdates, update, uninstall, launch, type AppSetup, type AppSettings } from './manager'
 import { LazyState } from 'channel/more'
 
 interface AppInfo {
@@ -8,6 +8,7 @@ interface AppInfo {
   restarts: boolean
   updateAvailable?: boolean
   instances?: number
+  settings?: AppSettings
 }
 type App = AppInfo & AppSetup
 
@@ -115,7 +116,7 @@ class RunningApp {
       this.data.active = true
       this.status.started = new Date()
       this.infoStream.setNeedsUpdate()
-      const process = launch(this.data)
+      const process = launch(this.data, this.data.settings)
       this.processes.push(process)
       try {
         const code = await process.exited
