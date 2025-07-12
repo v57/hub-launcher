@@ -1,7 +1,6 @@
 import { $ } from 'bun'
 import { Service } from 'hub-service'
 import { Apps } from './launcher/app'
-
 process.on('SIGTERM', () => process.exit(0)) // Docker shutdown event
 
 const apps = new Apps()

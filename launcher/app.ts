@@ -87,8 +87,31 @@ class RunningApp {
     }
   }
   async setSettings(settings: AppSettings) {
-    this.data.settings = settings
+    if (!this.data.settings) {
+      this.data.settings = settings
+    } else {
+      let s = this.data.settings
+      if (settings.env) s.env = settings.env
+      if (settings.secrets) {
+        if (!s.secrets) {
+          s.secrets = settings.secrets
+        } else {
+          // only overriding provided secrets
+          for (const [key, value] of Object.entries(settings.secrets)) {
+            s.secrets[key] = value
+          }
+        }
+      }
+    }
     await this.restartIfNeeded()
+  }
+  info() {
+    if (!this.data.settings?.secrets) return this.data
+    // deleting secrets
+    const data = { ...this.data }
+    data.settings = { ...data.settings }
+    delete data.settings.secrets
+    return data
   }
   async restartIfNeeded() {
     if (!this.data.active) return
@@ -295,7 +318,7 @@ export class Apps {
     }
   }
   async info() {
-    return { apps: this.list.map(a => a.data) }
+    return { apps: this.list.map(a => a.info()) }
   }
   async status() {
     try {

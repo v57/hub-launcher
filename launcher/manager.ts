@@ -48,10 +48,11 @@ const bun: ManagerType<IBun> = {
   },
   launch(setup: IBun, settings?: AppSettings) {
     const git = new Git(`https://github.com/${setup.repo}`)
+    let env = { ...process.env, ...setup.env, ...settings?.secrets, ...settings?.env }
     return Bun.spawn({
       cmd: ['bun', setup.command ?? '.'],
       cwd: git.directory,
-      env: setup.env || settings?.env ? { ...settings?.env, ...setup.env, ...process.env } : undefined,
+      env: Object.keys(env).length ? env : undefined,
     })
   },
 }
@@ -108,6 +109,7 @@ const manager = { bun, sh }
 export type AppSetup = TBun | TSh
 export interface AppSettings {
   env?: Record<string, string | undefined>
+  secrets?: Record<string, string | undefined>
 }
 
 export function install(setup: AppSetup): Promise<void> {
