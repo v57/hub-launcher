@@ -30,6 +30,10 @@ new Service()
     apps.get(name).start()
     await apps.save()
   })
+  .post('launcher/app/restart', async name => {
+    await apps.get(name).stop()
+    apps.get(name).start()
+  })
   .post('launcher/app/create', app => apps.create(app))
   .post('launcher/app/uninstall', app => apps.uninstall(app))
   .post('launcher/app/settings', async ({ app, settings }) => {
