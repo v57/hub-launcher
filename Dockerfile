@@ -1,22 +1,22 @@
-# Use the Bun canary alpine image as base
 FROM oven/bun:canary-alpine
 
-RUN apk add git procps
+# Install system dependencies
+RUN apk add --no-cache git procps
+
+# Clone the repository
+RUN git clone https://github.com/v57/hub-launcher /app
 
 # Set working directory
 WORKDIR /app
 
-# Copy all files into the container
-COPY . .
-
-# Install dependencies and update them
+# Install and update dependencies
 RUN bun install && bun update
 
-# Set environment variable (can be overridden at runtime)
+# Set environment variable
 ENV HUBLISTEN=0.0.0.0:1997
 
-# Expose the port (can be mapped on container run)
+# Expose port
 EXPOSE 1997
 
-# Run your application
+# Run the application
 CMD ["bun", "index.ts"]
