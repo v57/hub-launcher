@@ -7,7 +7,7 @@ const apps = new Apps()
 await apps.start()
 
 const group = 'Launcher'
-new Service()
+new Service({ name: 'Hub Launcher', icon: { symbol: 'apple.terminal.on.rectangle', text: 'GO' } })
   .post(
     'launcher/update',
     async () => {
