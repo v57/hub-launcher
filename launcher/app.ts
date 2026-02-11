@@ -340,18 +340,7 @@ export class Apps {
       {
         name: 'Hub Pro',
         type: 'bun',
-        command: 'start',
         repo: 'v57/hub-pro',
-        active: true,
-        restarts: true,
-      },
-      false,
-    )
-    await this.create(
-      {
-        name: 'Hub Auth',
-        type: 'bun',
-        repo: 'v57/hub-auth',
         active: true,
         restarts: true,
         env: { HUBOWNER: key },
