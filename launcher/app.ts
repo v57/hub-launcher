@@ -214,7 +214,6 @@ export class Apps {
         {
           name: 'Hub Lite',
           type: 'bun',
-          command: 'start',
           repo: 'v57/hub-lite',
           active: true,
           restarts: true,
