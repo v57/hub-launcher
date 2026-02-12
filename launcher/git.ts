@@ -1,5 +1,6 @@
 import { $ } from 'bun'
-import fs from 'fs/promises'
+import { mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
 
 export class Git {
   address: string
@@ -11,11 +12,10 @@ export class Git {
   }
   async clone() {
     try {
-      await fs.mkdir('apps')
+      await mkdir('apps')
     } catch {}
     const target = this.directory
-    const exists = await fs.exists(target)
-    if (exists) return
+    if (existsSync(target)) return
     await $`git clone "${this.address}" "${target}"`
   }
   async changeCommit(name?: string) {
