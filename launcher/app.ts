@@ -201,8 +201,8 @@ class RunningApp {
 
 export class Apps {
   list: RunningApp[]
-  statusStream = new LazyState<Status>(() => this.status()).delay(0.5).alwaysNeedsUpdate()
-  infoStream = new LazyState<InfoStatus>(() => this.info())
+  statusStream = new LazyState<Status>(() => this.status()).delay(0.5).alwaysNeedsUpdate().dedupe('json')
+  infoStream = new LazyState<InfoStatus>(() => this.info()).dedupe('json')
   constructor() {
     this.list = []
   }
