@@ -307,7 +307,7 @@ export class Apps {
         const memory = Math.ceil(Number(i[2]))
         if (status) {
           status.cpu = cpu
-          status.memory = cpu
+          status.memory = memory
         } else {
           app.status.processes.push({ pid, cpu, memory })
         }
