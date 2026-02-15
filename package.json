@@ -11,9 +11,10 @@
     "@types/bun": "latest"
   },
   "peerDependencies": {
-    "typescript": "^5.7.3"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
+    "channel": "v57/channel",
     "hub-service": "v57/hub-service"
   }
 }
