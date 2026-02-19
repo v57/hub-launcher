@@ -89,10 +89,13 @@ const sh: ManagerType<ISh> = {
     await runMany(setup.uninstall)
   },
   launch(setup: ISh, settings?: AppSettings) {
-    const home = (Bun.env.HOME as string) + '/'
-    const cmds = setup.run.split(' ').map(a => (a.startsWith('~/') ? a.replace('~/', home) : a))
+    let command = setup.directory ? `cd ${setup.directory}; ${setup.run}` : setup.run
     const env = setup.env ? { ...process.env, ...setup.env } : undefined
-    return Bun.spawn(cmds, { env, stdout: 'inherit', stderr: 'inherit' })
+    return Bun.spawn(['sh', '-c', command], {
+      env,
+      stdout: 'inherit',
+      stderr: 'inherit',
+    })
   },
 }
 function toArray<T>(value: T[] | T | undefined | null): T[] {
