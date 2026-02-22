@@ -303,7 +303,8 @@ export class Apps {
         const app = this.list.find(a => a.processes.findIndex(a => a.pid === pid) !== -1)
         if (!app) continue
         const status: ProcessStatus | undefined = app.status.processes.find(a => a.pid === pid)
-        const cpu = Math.ceil(Number(i[1]))
+        let cpu = Math.ceil(Number(i[1]))
+        if (cpu < 2) cpu = 0
         const memory = Math.ceil(Number(i[2]))
         if (status) {
           status.cpu = cpu
