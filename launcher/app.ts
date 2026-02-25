@@ -336,7 +336,7 @@ export class Apps {
   }
   async pro(key: string) {
     console.log('Upgrading to Hub Pro')
-    await this.optional('Hub Lite')?.stop()
+    await this.optional('Hub')?.stop()
     await this.create(
       {
         name: 'Hub Pro',
@@ -348,7 +348,7 @@ export class Apps {
       },
       false,
     )
-    await this.uninstall('Hub Lite', false)
+    await this.uninstall('Hub', false)
     await this.save()
   }
 }
