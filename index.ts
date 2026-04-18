@@ -1,10 +1,14 @@
 import { $ } from 'bun'
 import { Service } from 'hub-service'
 import { Apps } from './launcher/app'
-process.on('SIGTERM', () => process.exit(0)) // Docker shutdown event
 
 const apps = new Apps()
 await apps.start()
+
+process.once('SIGTERM', async () => {
+  await apps.stop()
+  process.exit(0)
+}) // Docker shutdown event
 
 const group = 'Launcher'
 new Service({ name: 'Hub Launcher', icon: { symbol: 'apple.terminal.on.rectangle', text: 'GO' } })
@@ -27,8 +31,8 @@ new Service({ name: 'Hub Launcher', icon: { symbol: 'apple.terminal.on.rectangle
   .post('launcher/update/all', () => apps.update(), { permissions: { group, name: 'Update apps' } })
   .post(
     'launcher/stop',
-    async () => {
-      setTimeout(() => process.exit(0), 500)
+    () => {
+      apps.stop()
     },
     { permissions: { group, name: 'Stop apps' } },
   )
