@@ -217,7 +217,7 @@ export class Apps {
     } catch {
       return [
         {
-          name: 'Hub Lite',
+          name: 'Hub',
           type: 'bun',
           repo: 'v57/hub-lite',
           active: true,
