@@ -1,6 +1,7 @@
 import { type Subprocess, $ } from 'bun'
 import { install, checkForUpdates, update, uninstall, launch, type AppSetup, type AppSettings } from './manager'
 import { LazyState } from 'channel/more'
+import { publicKey } from 'hub-service'
 
 interface AppInfo {
   name: string
@@ -354,7 +355,7 @@ export class Apps {
         repo: 'v57/hub-pro',
         active: true,
         restarts: true,
-        env: { HUBOWNER: key },
+        env: { HUBOWNER: key, HUBLAUNCHER: await publicKey() },
       },
       false,
     )
