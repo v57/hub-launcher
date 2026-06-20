@@ -1,6 +1,18 @@
 > Made for [Hub](https://hub.v57.dev)
 
 Manage and run the apps in your Hub network. It's primarily used to launch Hub and it's services and keep them alive. 
+
+Implemented features:
+- Installs [Hub Lite](https://github.com/v57/hub-lite) server by default with the option to upgrade to [Pro](https://github.com/v57/hub-pro)
+- Add installation, uninstallation, check for updates, update and launch shell scripts and use it from Hub app
+- Use bun preset to easily install bun and use scripts from GitHub
+- Watch process cpu and memory usage
+- Set environment values for each process
+- Secret environment values
+- Check for updates and update your commands easily from Hub
+- Start and stop processes when you need
+- Set number of processes you want to run
+
 ## Run from Source
 ```sh
 bun install && bun .
