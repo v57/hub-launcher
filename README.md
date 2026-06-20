@@ -1,6 +1,6 @@
 <h1>
   <img alt="Containerization logo" src="./icon.png" width="70" valign="middle">
-  &nbsp;ollama
+  &nbsp;Launcher
 </h1>
 > Made for [Hub](https://hub.v57.dev)
 
