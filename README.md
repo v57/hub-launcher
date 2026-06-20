@@ -1,3 +1,7 @@
+<h1>
+  <img alt="Containerization logo" src="./icon.png" width="70" valign="middle">
+  &nbsp;ollama
+</h1>
 > Made for [Hub](https://hub.v57.dev)
 
 Manage and run the apps in your Hub network. It's primarily used to launch Hub and it's services and keep them alive. 
@@ -26,6 +30,12 @@ bunx v57/hub
 Stop with
 ```sh
 bunx v57/hub stop
+```
+
+## Run from Docker
+```
+docker build -t hub .
+docker run -d --name hub -p 1997:1997 -e HUBLISTEN=0.0.0.0:1997 --restart=always hub
 ```
 
 # Api usage
