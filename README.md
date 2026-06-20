@@ -1,17 +1,172 @@
-<h1>
-  <img alt="Containerization logo" src="./icon.png" width="70" valign="middle">
-  &nbsp;launcher
-</h1>
-To install dependencies:
+> Made for [Hub](https://hub.v57.dev)
 
-```bash
-bun install
+Manage and run the apps in your Hub network. It's primarily used to launch Hub and it's services and keep them alive. 
+## Run from Source
+```sh
+bun install && bun .
 ```
 
-To run:
-
-```bash
-bun run index.ts
+## Run from [Hub cli](https://github.com/v57/hub)
+```sh
+bunx v57/hub
 ```
 
-This project was created using `bun init` in bun v1.2.3. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
+Stop with
+```sh
+bunx v57/hub stop
+```
+
+# Api usage
+### Watch app info
+
+```ts
+for await (const info of service.values('launcher/info')) {
+  // { apps: App[] }
+}
+```
+
+### Watch app status
+
+```ts
+for await (const status of service.values('launcher/status')) {
+  // { apps: AppStatus[] }
+}
+```
+
+### Update and restart apps
+
+```ts
+await service.send('launcher/update/check')
+await service.send('launcher/update/check/all')
+await service.send('launcher/update/all')
+await service.send('launcher/stop')
+```
+
+### Manage individual apps
+
+```ts
+await service.send('launcher/app/start', 'Hub Lite')
+await service.send('launcher/app/stop', 'Hub Lite')
+await service.send('launcher/app/restart', 'Hub Lite')
+await service.send('launcher/app/uninstall', 'Hub Lite')
+```
+
+### Install or configure apps
+
+```ts
+await service.send('launcher/app/create', {
+  name: 'My App',
+  type: 'bun',
+  repo: 'v57/my-app',
+  active: true,
+})
+
+await service.send('launcher/app/settings', {
+  app: 'My App',
+  settings: {
+    env: {
+      PORT: '3000',
+    },
+  },
+})
+
+await service.send('launcher/app/cluster', {
+  name: 'My App',
+  count: 3,
+})
+```
+
+### Upgrade Hub
+
+```ts
+await service.send('launcher/pro', 'your-owner-key')
+```
+
+## Launch config
+
+`launch.json` stores the managed apps.
+
+```ts
+interface AppSettings {
+  env?: Record<string, string | undefined>
+  secrets?: Record<string, string | undefined>
+}
+
+interface BunApp {
+  name: string
+  type: 'bun'
+  repo: string
+  command?: string
+  commit?: string
+  env?: Record<string, string>
+  envValues?: Record<string, string>
+  active?: boolean
+  restarts?: boolean
+  instances?: number
+  settings?: AppSettings
+}
+
+interface ShellApp {
+  name: string
+  type: 'sh'
+  run: string
+  directory?: string
+  install?: string[] | string
+  checkForUpdates?: string[] | string
+  update?: string[] | string
+  uninstall?: string[] | string
+  env?: Record<string, string>
+  envValues?: Record<string, string>
+  active?: boolean
+  restarts?: boolean
+  instances?: number
+  settings?: AppSettings
+}
+
+type AppSetup = BunApp | ShellApp
+```
+
+## Status shape
+
+```ts
+interface AppStatus {
+  name: string
+  checkingForUpdates?: boolean
+  updating?: boolean
+  crashes: number
+  processes: ProcessStatus[]
+  started?: Date
+}
+
+interface ProcessStatus {
+  pid: number
+  cpu: number
+  memory: number
+}
+```
+
+## Example launch file
+
+```json
+[
+  {
+    "name": "Hub Lite",
+    "type": "bun",
+    "command": "start",
+    "repo": "v57/hub-lite",
+    "active": true
+  },
+  {
+    "name": "Google",
+    "type": "bun",
+    "repo": "v57/hub-google",
+    "active": true
+  },
+  {
+    "name": "MongoDB",
+    "type": "sh",
+    "run": "/usr/local/bin/mongod --dbpath ~/mongo",
+    "active": true
+  }
+]
+```
