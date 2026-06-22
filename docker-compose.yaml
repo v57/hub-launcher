@@ -1,12 +1,8 @@
 services:
   hubs:
-    image: oven/bun:canary-alpine
-    working_dir: /app
-    volumes:
-      - ./:/app
+    build: .
     ports:
-      - 127.0.0.1:${PORT:-1997}:1997
+      - ${PORT:-1997}:1997
     environment:
-      - HUBLISTEN=0.0.0.0:1997
+      HUBLISTEN: 0.0.0.0:1997
     restart: always
-    command: /bin/sh -c "bun i && bun update && bun index.ts"
