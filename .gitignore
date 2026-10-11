@@ -3,3 +3,5 @@ launch.json
 apps/
 auth
 node_modules
+CLAUDE.md
+/.claude
