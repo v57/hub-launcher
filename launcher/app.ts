@@ -1,5 +1,16 @@
 import { type Subprocess, $ } from 'bun'
-import { install, checkForUpdates, update, uninstall, launch, type AppSetup, type AppSettings } from './manager'
+import {
+  install,
+  checkForUpdates,
+  update,
+  uninstall,
+  launch,
+  isSystemd,
+  startSystemd,
+  stopSystemd,
+  type AppSetup,
+  type AppSettings,
+} from './manager'
 import { LazyState } from 'channel/more'
 import { publicKey } from 'hub-service'
 
@@ -23,6 +34,7 @@ interface AppStatus {
   name: string
   checkingForUpdates?: boolean
   updating?: boolean
+  lastError?: string
   crashes: number
   processes: ProcessStatus[]
   started?: Date
@@ -49,7 +61,13 @@ class RunningApp {
   }
   async install() {
     console.log('Installing', this.data.name)
-    await install(this.data)
+    try {
+      await install(this.data)
+      delete this.status.lastError
+    } catch (error) {
+      this.recordError('install', error)
+      throw error
+    }
   }
   async update() {
     if (this.status.updating) return
@@ -58,7 +76,11 @@ class RunningApp {
     console.log('Updating', this.data.name)
     try {
       await update(this.data)
+      delete this.status.lastError
       await this.restartIfNeeded()
+    } catch (error) {
+      this.recordError('update', error)
+      throw error
     } finally {
       delete this.status.updating
     }
@@ -81,6 +103,21 @@ class RunningApp {
     }
   }
   start() {
+    if (isSystemd(this.data)) {
+      if (this.launched) return
+      this.launched = 1
+      this.data.active = true
+      this.status.started = new Date()
+      void startSystemd(this.data).catch(error => {
+        this.launched = 0
+        delete this.status.started
+        this.status.crashes += 1
+        this.recordError('start', error)
+        this.infoStream.setNeedsUpdate()
+        console.error('Failed to start', this.data.name, error)
+      })
+      return
+    }
     const instances = this.data.instances ?? 1
     if (instances > 1024) throw `too many instances for ${this.data.name}`
     while (instances > this.launched) {
@@ -144,6 +181,7 @@ class RunningApp {
     console.log('Launching', this.data.name)
     try {
       this.data.active = true
+      delete this.status.lastError
       this.status.started = new Date()
       this.infoStream.setNeedsUpdate()
       const process = launch(this.data, this.data.settings)
@@ -163,15 +201,28 @@ class RunningApp {
     } catch (e) {
       delete this.status.started
       this.status.crashes += 1
+      this.recordError('run', e)
       this.infoStream.setNeedsUpdate()
       console.log('Process exited with error')
       console.log(e)
       throw e
     }
   }
+  private recordError(operation: string, error: unknown) {
+    const detail = error instanceof Error ? error.message : String(error)
+    this.status.lastError = `${operation}: ${detail}`
+    this.infoStream.setNeedsUpdate()
+  }
   async stop() {
     console.log('Stopping', this.data.name)
     this.data.active = false
+    if (isSystemd(this.data)) {
+      await stopSystemd(this.data)
+      this.launched = 0
+      delete this.status.started
+      this.infoStream.setNeedsUpdate()
+      return
+    }
     const processes = [...this.processes]
     await Promise.allSettled(
       processes.map(async process => {
