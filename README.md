@@ -146,7 +146,57 @@ interface ShellApp {
   settings?: AppSettings
 }
 
-type AppSetup = BunApp | ShellApp
+interface SystemdApp {
+  name: string
+  type: 'systemd'
+  unit: string
+  install?: string[] | string
+  checkForUpdates?: string[] | string
+  update?: string[] | string
+  uninstall?: string[] | string
+  sudo?: boolean
+  active?: boolean
+  restarts?: boolean
+}
+
+type AppSetup = BunApp | ShellApp | SystemdApp
+```
+
+### Managing hub-net
+
+Use the `systemd` app type for `hub-net`. Launcher manages package commands and
+the unit lifecycle; `hub-net` remains a normal system service and works without
+Launcher. Uninstall commands should remove package files only. They must not
+remove `/var/lib/hub-net`, which owns the persistent agent identity and
+WireGuard key.
+
+```json
+{
+  "name": "Hub Network",
+  "type": "systemd",
+  "unit": "hub-net.service",
+  "install": "sudo /opt/hub-net/install",
+  "checkForUpdates": "/opt/hub-net/check-for-updates",
+  "update": "sudo /opt/hub-net/update",
+  "uninstall": "sudo /opt/hub-net/uninstall",
+  "active": true
+}
+```
+
+`sudo` defaults to `true` for `systemctl` calls and uses non-interactive mode,
+so missing privilege fails promptly instead of hanging Launcher. Set
+`"sudo": false` only when Launcher itself already runs with sufficient
+privilege. Package scripts remain explicit install metadata; Launcher does not
+hold or generate agent identity material.
+
+Failed service starts include a bounded `systemctl status` snapshot in
+`lastError`, preserving the agent's setup diagnostic without starting an
+unbounded journal reader. Privileged Linux acceptance uses temporary units to
+verify both generic agent stderr and an actual `hub-net` WireGuard probe
+failure caused by denying `AF_NETLINK`:
+
+```sh
+sudo HUB_LAUNCHER_SYSTEMD_ACCEPTANCE=1 bun test integration/systemd_failure.test.ts
 ```
 
 ## Status shape
@@ -156,6 +206,8 @@ interface AppStatus {
   name: string
   checkingForUpdates?: boolean
   updating?: boolean
+  /** Last install, update, start, or process failure. Cleared after success. */
+  lastError?: string
   crashes: number
   processes: ProcessStatus[]
   started?: Date

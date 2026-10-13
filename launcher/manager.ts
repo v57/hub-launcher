@@ -10,6 +10,17 @@ interface ManagerType<T> {
   launch(setup: T, settings?: AppSettings): Subprocess
 }
 
+export interface SystemdApp extends IEnv {
+  type: 'systemd'
+  unit: string
+  install?: string[] | string
+  checkForUpdates?: string[] | string
+  update?: string[] | string
+  uninstall?: string[] | string
+  /** Run systemctl through sudo. Disable when Launcher already runs as root. */
+  sudo?: boolean
+}
+
 interface IEnv {
   env?: Record<string, string>
   envValues?: Record<string, string> // { string: placeholder }
@@ -98,18 +109,81 @@ const sh: ManagerType<ISh> = {
     })
   },
 }
+
+export function systemctlCommand(setup: SystemdApp, action: string, includeUnit = true): string[] {
+  if (!/^[A-Za-z0-9_.@-]+(?:\.service)?$/.test(setup.unit)) throw new Error('invalid systemd unit')
+  const command = includeUnit ? ['systemctl', action, setup.unit] : ['systemctl', action]
+  return setup.sudo === false ? command : ['sudo', '--non-interactive', ...command]
+}
+
+export function systemctlStatusCommand(setup: SystemdApp): string[] {
+  const command = systemctlCommand(setup, 'status')
+  command.splice(command.length - 1, 0, '--no-pager', '--full', '--lines=20')
+  return command
+}
+
+export class CommandError extends Error {
+  constructor(
+    readonly command: string[],
+    readonly status: number,
+    readonly output: string,
+  ) {
+    super(
+      `${command.join(' ')} exited with status ${status}${output ? `: ${output}` : ''}`,
+    )
+    this.name = 'CommandError'
+  }
+}
+
+async function runCommand(command: string[]): Promise<void> {
+  const process = Bun.spawn(command, { stdout: 'pipe', stderr: 'pipe' })
+  const [code, stdout, stderr] = await Promise.all([
+    process.exited,
+    new Response(process.stdout).text(),
+    new Response(process.stderr).text(),
+  ])
+  const output = [stdout, stderr].map(value => value.trim()).filter(Boolean).join('\n')
+  if (code !== 0) throw new CommandError(command, code, output)
+}
+
+const systemd: ManagerType<SystemdApp> = {
+  async install(setup) {
+    await runMany(setup.install)
+    await runCommand(systemctlCommand(setup, 'daemon-reload', false))
+  },
+  async checkForUpdates(setup) {
+    try {
+      await runMany(setup.checkForUpdates)
+      return true
+    } catch {
+      return false
+    }
+  },
+  async update(setup) {
+    await runMany(setup.update)
+    await runCommand(systemctlCommand(setup, 'daemon-reload', false))
+  },
+  async uninstall(setup) {
+    await runCommand(systemctlCommand(setup, 'disable'))
+    await runMany(setup.uninstall)
+    await runCommand(systemctlCommand(setup, 'daemon-reload', false))
+  },
+  launch(setup) {
+    return Bun.spawn(systemctlCommand(setup, 'enable'), { stdout: 'inherit', stderr: 'inherit' })
+  },
+}
 function toArray<T>(value: T[] | T | undefined | null): T[] {
   return value === undefined || value === null ? [] : Array.isArray(value) ? value : [value]
 }
 async function runMany(value: string[] | string | undefined | null) {
   for (const command of toArray(value)) {
-    await Bun.spawn(command.split(' ')).exited
+    await runCommand(['sh', '-c', command])
   }
 }
 
 // MARK: Managers
-const manager = { bun, sh }
-export type AppSetup = TBun | TSh
+const manager = { bun, sh, systemd }
+export type AppSetup = TBun | TSh | SystemdApp
 export interface AppSettings {
   env?: Record<string, string | undefined>
   secrets?: Record<string, string | undefined>
@@ -129,4 +203,32 @@ export function update(setup: AppSetup): Promise<void> {
 }
 export function launch(setup: AppSetup, settings: AppSettings | undefined): Subprocess<'ignore', 'pipe', 'inherit'> {
   return (manager as any)[setup.type].launch(setup, settings)
+}
+
+export function isSystemd(setup: AppSetup): setup is SystemdApp {
+  return setup.type === 'systemd'
+}
+
+export async function startSystemd(setup: SystemdApp): Promise<void> {
+  await runCommand(systemctlCommand(setup, 'enable'))
+  try {
+    await runCommand(systemctlCommand(setup, 'start'))
+  } catch (startError) {
+    try {
+      await runCommand(systemctlStatusCommand(setup))
+    } catch (statusError) {
+      if (statusError instanceof CommandError && statusError.output) {
+        throw new CommandError(
+          startError instanceof CommandError ? startError.command : systemctlCommand(setup, 'start'),
+          startError instanceof CommandError ? startError.status : 1,
+          statusError.output,
+        )
+      }
+    }
+    throw startError
+  }
+}
+
+export async function stopSystemd(setup: SystemdApp): Promise<void> {
+  await runCommand(systemctlCommand(setup, 'stop'))
 }
