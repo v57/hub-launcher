@@ -1,8 +1,8 @@
-import { DeviceUsage, describeDevice, type DeviceData, type DeviceDescription } from './device'
+import { DeviceUsage, describeDevice, sshCapability, type DeviceData, type DeviceDescription } from './device'
 
 /** The reporter API of hub-service. Older hub-service versions don't have it. */
 interface Reporter {
-  device?: { name: string }
+  device?: { name: string; key?(): Promise<{ sign(data: string): string }> }
   describeDevice?(description: DeviceDescription): Promise<boolean>
   reportDeviceData?(interval: number, collect: () => Promise<DeviceData>): () => void
 }
@@ -20,11 +20,18 @@ export function reportDevice(service: Reporter): () => void {
   const describe = service.describeDevice?.bind(service)
   const reportData = service.reportDeviceData?.bind(service)
   if (!describe || !reportData || !service.device) return () => {}
-  const name = service.device.name
+  const device = service.device
+  const name = device.name
   let running = true
   const update = async () => {
     try {
-      await describe(await describeDevice(name))
+      const description = await describeDevice(name)
+      if (device.key) {
+        const key = await device.key()
+        const ssh = await sshCapability(data => key.sign(data))
+        if (ssh) description.capabilities = { ...description.capabilities, ssh }
+      }
+      await describe(description)
     } catch (error) {
       console.error('Failed to describe the device:', error)
     }

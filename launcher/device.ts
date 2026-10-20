@@ -1,4 +1,4 @@
-import { arch, cpus, freemem, release, totalmem } from 'node:os'
+import { arch, cpus, freemem, release, totalmem, userInfo } from 'node:os'
 
 /** What the launcher reports for its device (`hub/device/describe`). */
 export interface DeviceDescription {
@@ -11,7 +11,16 @@ export interface DeviceDescription {
     disks?: Disk[]
     power?: 'ac' | 'battery'
     tools?: Tools
+    ssh?: SSH
   }
+}
+interface SSH {
+  port: number
+  user?: string
+  /** OpenSSH public key line without comment */
+  hostKey: string
+  /** Device signature over `ssh1:<hostKey>` */
+  hostKeySignature: string
 }
 interface Disk {
   name: string
@@ -232,4 +241,75 @@ function cpuTimes() {
     idle += times.idle
   }
   return { total, idle }
+}
+
+/** `ssh-ed25519 AAAA…` from a `.pub` file: key type and blob, without the comment. */
+export function parseHostKey(line: string): string | undefined {
+  const [type, blob] = line.trim().split(/\s+/)
+  if (!type || !blob || !/^[A-Za-z0-9+/]+=*$/.test(blob)) return
+  return `${type} ${blob}`
+}
+
+/** The first `Port` in sshd_config, 22 by default. */
+export function parseSSHPort(config: string): number {
+  for (const line of config.split('\n')) {
+    const match = line.trim().match(/^Port\s+(\d+)/i)
+    if (match) return Number(match[1])
+  }
+  return 22
+}
+
+async function listening(port: number, timeout = 1000): Promise<boolean> {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => resolve(false), timeout)
+    Bun.connect({
+      hostname: '127.0.0.1',
+      port,
+      socket: {
+        open(socket) {
+          clearTimeout(timer)
+          socket.end()
+          resolve(true)
+        },
+        data() {},
+        error() {
+          clearTimeout(timer)
+          resolve(false)
+        },
+        connectError() {
+          clearTimeout(timer)
+          resolve(false)
+        },
+      },
+    }).catch(() => {
+      clearTimeout(timer)
+      resolve(false)
+    })
+  })
+}
+
+/**
+ * The SSH server of this device, when sshd's Ed25519 host key is readable and its port accepts connections.
+ * The device key signs `ssh1:<hostKey>` so clients can pin the host key through the hub.
+ */
+export async function sshCapability(
+  sign: (data: string) => string | Promise<string>,
+  paths = { hostKey: '/etc/ssh/ssh_host_ed25519_key.pub', config: '/etc/ssh/sshd_config' },
+  isListening: (port: number) => Promise<boolean> = listening,
+): Promise<SSH | undefined> {
+  let hostKey: string | undefined
+  try {
+    hostKey = parseHostKey(await Bun.file(paths.hostKey).text())
+  } catch {}
+  if (!hostKey) return
+  let port = 22
+  try {
+    port = parseSSHPort(await Bun.file(paths.config).text())
+  } catch {}
+  if (!(await isListening(port))) return
+  const ssh: SSH = { port, hostKey, hostKeySignature: await sign(`ssh1:${hostKey}`) }
+  try {
+    ssh.user = userInfo().username
+  } catch {}
+  return ssh
 }

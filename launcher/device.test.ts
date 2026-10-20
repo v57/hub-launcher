@@ -1,5 +1,20 @@
 import { describe, expect, test } from 'bun:test'
-import { DeviceUsage, describeDevice, parseDisks, parseOSRelease, parsePmset, parseSimulators, parseVMStat } from './device'
+import { generateKeyPairSync, sign, verify } from 'node:crypto'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import {
+  DeviceUsage,
+  describeDevice,
+  parseDisks,
+  parseHostKey,
+  parseOSRelease,
+  parsePmset,
+  parseSSHPort,
+  parseSimulators,
+  parseVMStat,
+  sshCapability,
+} from './device'
 import { reportDevice } from './reporter'
 
 describe('device description', () => {
@@ -106,6 +121,37 @@ Pages occupied by compressor:                 50.`
     if (data.cpu !== undefined) {
       expect(data.cpu).toBeGreaterThanOrEqual(0)
       expect(data.cpu).toBeLessThanOrEqual(1)
+    }
+  })
+})
+
+describe('ssh capability', () => {
+  const hostKey = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+  test('parses host keys and ports', () => {
+    expect(parseHostKey(`${hostKey} root@mac\n`)).toBe(hostKey)
+    expect(parseHostKey('garbage')).toBeUndefined()
+    expect(parseSSHPort('#Port 22\nPort 2222\n')).toBe(2222)
+    expect(parseSSHPort('#Port 2200\n')).toBe(22)
+  })
+
+  test('signs the host key with the device key when sshd listens', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hub-launcher-ssh-'))
+    try {
+      const paths = { hostKey: join(directory, 'key.pub'), config: join(directory, 'sshd_config') }
+      await Bun.write(paths.hostKey, `${hostKey} root@host\n`)
+      await Bun.write(paths.config, 'Port 2022\n')
+      const keys = generateKeyPairSync('ed25519')
+      const signer = (data: string) => sign(null, Buffer.from(data), keys.privateKey).toString('base64')
+      const ports: number[] = []
+      const ssh = await sshCapability(signer, paths, async port => (ports.push(port), true))
+      expect(ports).toEqual([2022])
+      expect(ssh!.port).toBe(2022)
+      expect(ssh!.hostKey).toBe(hostKey)
+      expect(verify(null, Buffer.from(`ssh1:${hostKey}`), keys.publicKey, Buffer.from(ssh!.hostKeySignature, 'base64'))).toBeTrue()
+      expect(await sshCapability(signer, paths, async () => false)).toBeUndefined()
+      expect(await sshCapability(signer, { ...paths, hostKey: join(directory, 'missing') }, async () => true)).toBeUndefined()
+    } finally {
+      await rm(directory, { recursive: true, force: true })
     }
   })
 })
