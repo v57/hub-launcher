@@ -42,6 +42,14 @@ new Service({ name: 'Hub Launcher', icon: { symbol: 'apple.terminal.on.rectangle
   .stream('launcher/status', () => apps.statusStream.makeIterator(), {
     permissions: { group, name: 'View app information' },
   })
+  .post(
+    'launcher/app/logs',
+    (body: string | { name: string; limit?: number }) => {
+      const { name, limit } = typeof body === 'string' ? { name: body, limit: undefined } : body
+      return apps.get(name).recentLogs(limit)
+    },
+    { permissions: { group, name: 'View app information' } },
+  )
   .post('launcher/pro', key => apps.pro(key), { permissions: { group, name: 'Install apps' } })
   .post(
     'launcher/app/stop',

@@ -64,6 +64,8 @@ const bun: ManagerType<IBun> = {
       cmd: ['bun', setup.command ?? '.'],
       cwd: git.directory,
       env: Object.keys(env).length ? env : undefined,
+      stdout: 'pipe',
+      stderr: 'pipe',
     })
   },
 }
@@ -104,8 +106,8 @@ const sh: ManagerType<ISh> = {
     const env = setup.env ? { ...process.env, ...setup.env } : undefined
     return Bun.spawn(['sh', '-c', command], {
       env,
-      stdout: 'inherit',
-      stderr: 'inherit',
+      stdout: 'pipe',
+      stderr: 'pipe',
     })
   },
 }
@@ -169,7 +171,7 @@ const systemd: ManagerType<SystemdApp> = {
     await runCommand(systemctlCommand(setup, 'daemon-reload', false))
   },
   launch(setup) {
-    return Bun.spawn(systemctlCommand(setup, 'enable'), { stdout: 'inherit', stderr: 'inherit' })
+    return Bun.spawn(systemctlCommand(setup, 'enable'), { stdout: 'pipe', stderr: 'pipe' })
   },
 }
 function toArray<T>(value: T[] | T | undefined | null): T[] {
@@ -201,7 +203,7 @@ export function checkForUpdates(setup: AppSetup): Promise<boolean> {
 export function update(setup: AppSetup): Promise<void> {
   return (manager as any)[setup.type].update(setup)
 }
-export function launch(setup: AppSetup, settings: AppSettings | undefined): Subprocess<'ignore', 'pipe', 'inherit'> {
+export function launch(setup: AppSetup, settings: AppSettings | undefined): Subprocess<'ignore', 'pipe', 'pipe'> {
   return (manager as any)[setup.type].launch(setup, settings)
 }
 

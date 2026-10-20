@@ -13,6 +13,7 @@ import {
 } from './manager'
 import { LazyState } from 'channel/more'
 import { publicKey } from 'hub-service'
+import { AppLogs, type LogLine } from './logs'
 
 interface AppInfo {
   name: string
@@ -38,21 +39,53 @@ interface AppStatus {
   crashes: number
   processes: ProcessStatus[]
   started?: Date
+  /** When a crashed app is started again */
+  nextRestart?: Date
 }
 interface ProcessStatus {
   pid: number
   cpu: number
   memory: number
 }
-class RunningApp {
+export interface RestartPolicy {
+  /** Delay before the first restart, in milliseconds */
+  initialDelay: number
+  /** Longest delay between restarts, in milliseconds */
+  maxDelay: number
+  /** A run this long resets the delay, in milliseconds */
+  stableAfter: number
+}
+const defaultRestartPolicy: RestartPolicy = { initialDelay: 1000, maxDelay: 60_000, stableAfter: 60_000 }
+
+/** A process that exited on its own with a non-zero code or a signal. */
+export class CrashError extends Error {
+  constructor(
+    readonly code: number | null,
+    readonly signal: string | null,
+    readonly output: string,
+  ) {
+    super(`${signal ? `killed by ${signal}` : `exited with code ${code}`}${output ? `: ${output}` : ''}`)
+    this.name = 'CrashError'
+  }
+}
+
+export class RunningApp {
   data: App
   infoStream: LazyState<InfoStatus>
   status: AppStatus
   processes: Subprocess[] = []
   launched = 0
-  constructor(data: App, infoStream: LazyState<InfoStatus>) {
+  logs: AppLogs
+  restartPolicy: RestartPolicy
+  /** Crashes since the last stable run, for the restart delay */
+  private consecutiveCrashes = 0
+  /** Processes the launcher stopped itself. Bun reports any signal death as `killed`. */
+  private stopping = new WeakSet<Subprocess>()
+  constructor(data: App, infoStream: LazyState<InfoStatus>, restartPolicy: RestartPolicy = defaultRestartPolicy) {
     this.data = data
     this.infoStream = infoStream
+    this.restartPolicy = restartPolicy
+    this.logs = new AppLogs(data.name)
     this.status = {
       name: data.name,
       crashes: 0,
@@ -160,22 +193,35 @@ class RunningApp {
   }
   private async startOne() {
     this.launched += 1
-    if (this.data.restarts) {
+    try {
       while (true) {
+        const started = Date.now()
         try {
           await this.launch()
-          this.launched -= 1
+          this.consecutiveCrashes = 0
           return
         } catch {
-          await new Promise(a => setTimeout(a, 1000))
+          if (!this.data.restarts || !this.data.active) return
+          if (Date.now() - started >= this.restartPolicy.stableAfter) this.consecutiveCrashes = 0
+          this.consecutiveCrashes += 1
+          const delay = this.restartDelay(this.consecutiveCrashes)
+          this.status.nextRestart = new Date(Date.now() + delay)
+          this.infoStream.setNeedsUpdate()
+          console.log('Restarting', this.data.name, `in ${delay}ms`)
+          await new Promise(a => setTimeout(a, delay))
+          delete this.status.nextRestart
+          // Stopped while waiting
+          if (!this.data.active) return
         }
       }
-    } else {
-      try {
-        await this.launch()
-      } catch {}
+    } finally {
       this.launched -= 1
     }
+  }
+  /** Exponential backoff: initialDelay, doubling up to maxDelay. */
+  restartDelay(crashes: number): number {
+    const { initialDelay, maxDelay } = this.restartPolicy
+    return Math.min(initialDelay * 2 ** Math.max(0, Math.min(crashes - 1, 30)), maxDelay)
   }
   private async launch() {
     console.log('Launching', this.data.name)
@@ -184,15 +230,24 @@ class RunningApp {
       delete this.status.lastError
       this.status.started = new Date()
       this.infoStream.setNeedsUpdate()
+      const startedAt = Date.now()
       const process = launch(this.data, this.data.settings)
       this.processes.push(process)
+      const output = Promise.all([this.logs.pump(process.stdout, 'stdout'), this.logs.pump(process.stderr, 'stderr')])
       try {
         const code = await process.exited
+        // A grandchild can keep the pipes open after the process exits
+        await Promise.race([output, new Promise(a => setTimeout(a, 200))])
         this.infoStream.setNeedsUpdate()
         this.processes.removeFirst(a => a === process)
         this.status.processes.removeFirst(a => a.pid === process.pid)
-        if (code === 0 || process.killed) return
-        console.log('Process completed', code, process.killed)
+        if (this.stopping.has(process)) return
+        if (code === 0 && !process.signalCode) return
+        const stderr = this.logs
+          .tail(5, 'stderr', startedAt)
+          .map(line => line.text)
+          .join('\n')
+        throw new CrashError(code, process.signalCode ?? null, stderr)
       } catch (e) {
         this.processes.removeFirst(a => a === process)
         this.status.processes.removeFirst(a => a.pid === process.pid)
@@ -226,13 +281,20 @@ class RunningApp {
     const processes = [...this.processes]
     await Promise.allSettled(
       processes.map(async process => {
-        try {
-          process.kill()
-        } catch {}
+        this.terminate(process)
         await new Promise<void>(r => process.exited.finally(() => r()))
       }),
     )
     this.infoStream.setNeedsUpdate()
+  }
+  private terminate(process: Subprocess) {
+    this.stopping.add(process)
+    try {
+      process.kill()
+    } catch {}
+  }
+  recentLogs(limit = 200): LogLine[] {
+    return this.logs.tail(Math.max(1, Math.min(limit, 500)))
   }
   async setInstances(instances: number) {
     if (instances > 1024) throw 'too many instances'
@@ -249,7 +311,7 @@ class RunningApp {
     while (this.launched > i) {
       const process = this.processes.at(-1)
       if (!process) return
-      process.kill()
+      this.terminate(process)
       await new Promise<void>(r => process.exited.finally(() => r()))
       this.infoStream.setNeedsUpdate()
     }
