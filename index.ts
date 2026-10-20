@@ -1,6 +1,7 @@
 import { $ } from 'bun'
 import { Service } from 'hub-service'
 import { Apps } from './launcher/app'
+import { reportDevice } from './launcher/reporter'
 
 const apps = new Apps()
 await apps.start()
@@ -11,7 +12,14 @@ process.once('SIGTERM', async () => {
 }) // Docker shutdown event
 
 const group = 'Launcher'
-new Service({ name: 'Hub Launcher', icon: { symbol: 'apple.terminal.on.rectangle', text: 'GO' } })
+// The device's reporter on servers; a second launcher on the same device is ignored by the hub
+const service = new Service({
+  name: 'Hub Launcher',
+  icon: { symbol: 'apple.terminal.on.rectangle', text: 'GO' },
+  instance: process.env.HUB_INSTANCE ?? 'hub-launcher',
+  reporter: true,
+} as ConstructorParameters<typeof Service>[0])
+service
   .post(
     'launcher/update',
     async () => {
@@ -94,3 +102,5 @@ new Service({ name: 'Hub Launcher', icon: { symbol: 'apple.terminal.on.rectangle
     { permissions: { group, name: 'Cluster apps' } },
   )
   .start()
+
+reportDevice(service)
