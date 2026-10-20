@@ -137,8 +137,13 @@ describe('ssh capability', () => {
   test('signs the host key with the device key when sshd listens', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'hub-launcher-ssh-'))
     try {
-      const paths = { hostKey: join(directory, 'key.pub'), config: join(directory, 'sshd_config') }
-      await Bun.write(paths.hostKey, `${hostKey} root@host\n`)
+      const ecdsa = 'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEm1'
+      const paths = {
+        hostKeys: ['ed25519', 'ecdsa', 'rsa'].map(type => join(directory, `ssh_host_${type}_key.pub`)),
+        config: join(directory, 'sshd_config'),
+      }
+      await Bun.write(paths.hostKeys[0]!, `${hostKey} root@host\n`)
+      await Bun.write(paths.hostKeys[1]!, `${ecdsa}\n`)
       await Bun.write(paths.config, 'Port 2022\n')
       const keys = generateKeyPairSync('ed25519')
       const signer = (data: string) => sign(null, Buffer.from(data), keys.privateKey).toString('base64')
@@ -148,8 +153,16 @@ describe('ssh capability', () => {
       expect(ssh!.port).toBe(2022)
       expect(ssh!.hostKey).toBe(hostKey)
       expect(verify(null, Buffer.from(`ssh1:${hostKey}`), keys.publicKey, Buffer.from(ssh!.hostKeySignature, 'base64'))).toBeTrue()
+      // Every readable key, most preferred first; the missing RSA key is skipped
+      expect(ssh!.hostKeys!.map(key => key.hostKey)).toEqual([hostKey, ecdsa])
+      for (const key of ssh!.hostKeys!) {
+        expect(verify(null, Buffer.from(`ssh1:${key.hostKey}`), keys.publicKey, Buffer.from(key.hostKeySignature, 'base64'))).toBeTrue()
+      }
       expect(await sshCapability(signer, paths, async () => false)).toBeUndefined()
-      expect(await sshCapability(signer, { ...paths, hostKey: join(directory, 'missing') }, async () => true)).toBeUndefined()
+      // Without Ed25519 the next key type is the preferred one
+      const ecdsaOnly = await sshCapability(signer, { ...paths, hostKeys: paths.hostKeys.slice(1) }, async () => true)
+      expect(ecdsaOnly!.hostKey).toBe(ecdsa)
+      expect(await sshCapability(signer, { ...paths, hostKeys: [join(directory, 'missing')] }, async () => true)).toBeUndefined()
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

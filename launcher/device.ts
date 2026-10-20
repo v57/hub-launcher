@@ -21,6 +21,8 @@ interface SSH {
   hostKey: string
   /** Device signature over `ssh1:<hostKey>` */
   hostKeySignature: string
+  /** Every host key sshd offers, for clients that can't use the preferred one (libssh2 on mbedTLS: no Ed25519) */
+  hostKeys?: { hostKey: string; hostKeySignature: string }[]
 }
 interface Disk {
   name: string
@@ -288,26 +290,34 @@ async function listening(port: number, timeout = 1000): Promise<boolean> {
   })
 }
 
+/** sshd host public keys, most preferred first */
+const hostKeyPaths = ['ed25519', 'ecdsa', 'rsa'].map(type => `/etc/ssh/ssh_host_${type}_key.pub`)
+
 /**
- * The SSH server of this device, when sshd's Ed25519 host key is readable and its port accepts connections.
- * The device key signs `ssh1:<hostKey>` so clients can pin the host key through the hub.
+ * The SSH server of this device, when one of sshd's host keys is readable and its port accepts connections.
+ * The device key signs `ssh1:<hostKey>` for each key so clients can pin it through the hub. `hostKey` is the most
+ * preferred one (Ed25519); `hostKeys` lists all of them.
  */
 export async function sshCapability(
   sign: (data: string) => string | Promise<string>,
-  paths = { hostKey: '/etc/ssh/ssh_host_ed25519_key.pub', config: '/etc/ssh/sshd_config' },
+  paths = { hostKeys: hostKeyPaths, config: '/etc/ssh/sshd_config' },
   isListening: (port: number) => Promise<boolean> = listening,
 ): Promise<SSH | undefined> {
-  let hostKey: string | undefined
-  try {
-    hostKey = parseHostKey(await Bun.file(paths.hostKey).text())
-  } catch {}
-  if (!hostKey) return
+  const keys: string[] = []
+  for (const path of paths.hostKeys) {
+    try {
+      const key = parseHostKey(await Bun.file(path).text())
+      if (key && !keys.includes(key)) keys.push(key)
+    } catch {}
+  }
+  if (!keys.length) return
   let port = 22
   try {
     port = parseSSHPort(await Bun.file(paths.config).text())
   } catch {}
   if (!(await isListening(port))) return
-  const ssh: SSH = { port, hostKey, hostKeySignature: await sign(`ssh1:${hostKey}`) }
+  const hostKeys = await Promise.all(keys.map(async hostKey => ({ hostKey, hostKeySignature: await sign(`ssh1:${hostKey}`) })))
+  const ssh: SSH = { port, ...hostKeys[0]!, hostKeys }
   try {
     ssh.user = userInfo().username
   } catch {}
