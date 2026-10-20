@@ -1,4 +1,5 @@
 import { type Subprocess, $ } from 'bun'
+import { resolve } from 'node:path'
 import {
   install,
   checkForUpdates,
@@ -12,6 +13,7 @@ import {
   type AppSettings,
 } from './manager'
 import { LazyState } from 'channel/more'
+import * as hubService from 'hub-service'
 import { publicKey } from 'hub-service'
 import { AppLogs, type LogLine } from './logs'
 
@@ -231,7 +233,7 @@ export class RunningApp {
       this.status.started = new Date()
       this.infoStream.setNeedsUpdate()
       const startedAt = Date.now()
-      const process = launch(this.data, this.data.settings)
+      const process = launch(this.data, this.data.settings, appEnvironment(this.data.name))
       this.processes.push(process)
       const output = Promise.all([this.logs.pump(process.stdout, 'stdout'), this.logs.pump(process.stderr, 'stderr')])
       try {
@@ -316,6 +318,19 @@ export class RunningApp {
       this.infoStream.setNeedsUpdate()
     }
   }
+}
+
+// Missing in hub-service versions before the device layer
+const deviceKeyPath: (() => string) | undefined = (hubService as { deviceKeyPath?: () => string }).deviceKeyPath
+
+/**
+ * What every app gets from the launcher: the shared device key, so its services are certified by this device,
+ * and the app name as a stable instance name (cluster instances share it, as replicas of one service).
+ */
+export function appEnvironment(name: string): Record<string, string> {
+  const env: Record<string, string> = { HUB_INSTANCE: name }
+  if (deviceKeyPath) env.HUB_DEVICE_KEY = resolve(deviceKeyPath())
+  return env
 }
 
 export class Apps {

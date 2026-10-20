@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { LazyState } from 'channel/more'
-import { RunningApp, CrashError } from './app'
+import { RunningApp, CrashError, appEnvironment } from './app'
 
 const policy = { initialDelay: 20, maxDelay: 80, stableAfter: 60_000 }
 
@@ -82,5 +82,27 @@ describe('running apps', () => {
   test('describes crashes', () => {
     expect(new CrashError(2, null, '').message).toBe('exited with code 2')
     expect(new CrashError(null, 'SIGSEGV', 'trace').message).toBe('killed by SIGSEGV: trace')
+  })
+})
+
+describe('app environment', () => {
+  test('passes the device key and the app name as instance', async () => {
+    const app = makeApp('echo "$HUB_INSTANCE|$HUB_DEVICE_KEY"', false)
+    app.start()
+    await waitFor(() => app.launched === 0)
+    expect(app.logs.tail(1, 'stdout')[0]!.text).toBe(`test|${process.env.HUB_DEVICE_KEY}`)
+    expect(appEnvironment('Backup')).toEqual({ HUB_INSTANCE: 'Backup', HUB_DEVICE_KEY: process.env.HUB_DEVICE_KEY! })
+  })
+
+  test("the app's own env wins", async () => {
+    const info = new LazyState(() => ({ apps: [] }))
+    const app = new RunningApp(
+      { name: 'test', type: 'sh', run: 'echo "$HUB_INSTANCE"', active: true, restarts: false, env: { HUB_INSTANCE: 'custom' } },
+      info,
+      policy,
+    )
+    app.start()
+    await waitFor(() => app.launched === 0)
+    expect(app.logs.tail(1, 'stdout')[0]!.text).toBe('custom')
   })
 })

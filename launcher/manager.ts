@@ -7,7 +7,7 @@ interface ManagerType<T> {
   uninstall(setup: T): Promise<void>
   checkForUpdates(setup: T): Promise<boolean>
   update(setup: T): Promise<void>
-  launch(setup: T, settings?: AppSettings): Subprocess
+  launch(setup: T, settings?: AppSettings, base?: Record<string, string>): Subprocess
 }
 
 export interface SystemdApp extends IEnv {
@@ -57,9 +57,9 @@ const bun: ManagerType<IBun> = {
     const git = new Git(`https://github.com/${setup.repo}`)
     await rm(git.directory, { recursive: true, force: true })
   },
-  launch(setup: IBun, settings?: AppSettings) {
+  launch(setup: IBun, settings?: AppSettings, base?: Record<string, string>) {
     const git = new Git(`https://github.com/${setup.repo}`)
-    let env = { ...process.env, ...setup.env, ...settings?.secrets, ...settings?.env }
+    let env = { ...process.env, ...base, ...setup.env, ...settings?.secrets, ...settings?.env }
     return Bun.spawn({
       cmd: ['bun', setup.command ?? '.'],
       cwd: git.directory,
@@ -101,9 +101,9 @@ const sh: ManagerType<ISh> = {
   async uninstall(setup: ISh) {
     await runMany(setup.uninstall)
   },
-  launch(setup: ISh, settings?: AppSettings) {
+  launch(setup: ISh, settings?: AppSettings, base?: Record<string, string>) {
     let command = setup.directory ? `cd ${setup.directory}; ${setup.run}` : setup.run
-    const env = setup.env ? { ...process.env, ...setup.env } : undefined
+    const env = setup.env || base ? { ...process.env, ...base, ...setup.env } : undefined
     return Bun.spawn(['sh', '-c', command], {
       env,
       stdout: 'pipe',
@@ -203,8 +203,13 @@ export function checkForUpdates(setup: AppSetup): Promise<boolean> {
 export function update(setup: AppSetup): Promise<void> {
   return (manager as any)[setup.type].update(setup)
 }
-export function launch(setup: AppSetup, settings: AppSettings | undefined): Subprocess<'ignore', 'pipe', 'pipe'> {
-  return (manager as any)[setup.type].launch(setup, settings)
+/** `base` is the launcher's environment for every app; the app's own env and settings override it. */
+export function launch(
+  setup: AppSetup,
+  settings: AppSettings | undefined,
+  base?: Record<string, string>,
+): Subprocess<'ignore', 'pipe', 'pipe'> {
+  return (manager as any)[setup.type].launch(setup, settings, base)
 }
 
 export function isSystemd(setup: AppSetup): setup is SystemdApp {
