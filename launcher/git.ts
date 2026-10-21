@@ -34,6 +34,6 @@ export class Git {
     }
   }
   async update() {
-    await $`git pull"`.cwd(this.directory)
+    await $`git pull`.cwd(this.directory)
   }
 }
