@@ -1,6 +1,6 @@
 import { $ } from 'bun'
 import { Service } from 'hub-service'
-import { Apps, launcherKey } from './launcher/app'
+import { Apps } from './launcher/app'
 import { reportDevice } from './launcher/reporter'
 
 const apps = new Apps()
@@ -12,10 +12,7 @@ process.once('SIGTERM', async () => {
 }) // Docker shutdown event
 
 const group = 'Launcher'
-/** Requests from the launcher's own key: the CLI on this device, which reads the launcher's `auth` file */
-async function isLauncher(request?: { caller?: { key?: string } }): Promise<boolean> {
-  return !!request?.caller?.key && request.caller.key === (await launcherKey())
-}
+type Request = { caller?: { owner?: boolean } }
 // The device's reporter on servers; a second launcher on the same device is ignored by the hub
 const service = new Service({
   name: 'Hub Launcher',
@@ -48,12 +45,9 @@ service
     },
     { permissions: { group, name: 'Stop apps' } },
   )
-  .stream(
-    'launcher/info',
-    async (_: unknown, request?: { caller?: { key?: string } }) =>
-      (await isLauncher(request)) ? apps.localInfoStream.makeIterator() : apps.infoStream.makeIterator(),
-    { permissions: { group, name: 'View app information' } },
-  )
+  .stream('launcher/info', () => apps.infoStream.makeIterator(), {
+    permissions: { group, name: 'View app information' },
+  })
   .stream('launcher/status', () => apps.statusStream.makeIterator(), {
     permissions: { group, name: 'View app information' },
   })
@@ -67,8 +61,9 @@ service
   )
   .post(
     'launcher/pair/new',
-    async (_: unknown, request?: { caller?: { key?: string } }) => {
-      if (!(await isLauncher(request))) throw 'launcher key only'
+    // A new owner is added by an existing one. Without an owner, `hub pair` runs hub-server --pair on this device.
+    async (_: unknown, request?: Request) => {
+      if (request?.caller?.owner !== true) throw 'owner only'
       return apps.newPairingCode()
     },
     { permissions: { group, name: 'Pair owners' } },

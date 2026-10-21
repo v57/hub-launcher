@@ -45,12 +45,9 @@ docker run -d --name hub -p 1997:1997 -e HUBLISTEN=0.0.0.0:1997 --restart=always
 
 ```ts
 for await (const info of service.values('launcher/info')) {
-  // { apps: App[], pairingCode?: string }
+  // { apps: App[] }
 }
 ```
-
-`pairingCode` (hub-server's current code, `K7Q-2MX`) is only sent to the launcher's own key, which the `hub` CLI on
-the same device uses.
 
 ### Watch app status
 
@@ -109,7 +106,9 @@ await service.send('launcher/app/cluster', {
 const code = await service.send('launcher/pair/new') // 'K7Q-2MX'
 ```
 
-Runs `hub-server --pair`, which replaces the old code. Only the launcher's own key may call it.
+Runs `hub-server --pair`, which replaces the old code. Only an owner may call it, to add another owner. The code
+never goes over the hub otherwise: before the first owner, the launcher prints it and `hub pair` reads it from
+hub-server's `data/pairing-code` on the same device.
 
 ## Launch config
 

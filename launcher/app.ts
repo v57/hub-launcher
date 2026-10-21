@@ -34,8 +34,6 @@ interface Status {
 }
 interface InfoStatus {
   apps: App[]
-  /** hub-server's pairing code; only the launcher's own key (the local CLI) sees it */
-  pairingCode?: string
 }
 interface AppStatus {
   name: string
@@ -349,11 +347,7 @@ export class Apps {
   list: RunningApp[]
   statusStream = new LazyState<Status>(() => this.status()).delay(0.5).alwaysNeedsUpdate().dedupe('json')
   infoStream = new LazyState<InfoStatus>(() => this.info()).dedupe('json')
-  /** `launcher/info` with the pairing code, for the launcher's own key */
-  localInfoStream = new LazyState<InfoStatus>(() => this.localInfo())
-    .delay(1)
-    .alwaysNeedsUpdate()
-    .dedupe('json')
+  /** Last printed pairing code. It never goes over the hub: only stdout and the CLI reading the file see it. */
   pairingCode?: string
   private pairingWatch?: Timer
   constructor() {
@@ -476,10 +470,6 @@ export class Apps {
   async info(): Promise<InfoStatus> {
     return { apps: this.list.map(a => a.info()) }
   }
-  async localInfo(): Promise<InfoStatus> {
-    const info = await this.info()
-    return this.pairingCode ? { ...info, pairingCode: this.pairingCode } : info
-  }
   /** Folder of the installed hub-server, if any */
   hubServerFolder(): string | undefined {
     const app = this.list.find(a => isHubServer(a.data))
@@ -502,7 +492,7 @@ export class Apps {
     this.pairingWatch.unref?.()
     void check()
   }
-  /** Replaces hub-server's pairing code (`hub-server --pair`) and returns the new one */
+  /** Replaces hub-server's pairing code (`hub-server --pair`) and returns the new one, for an owner adding another */
   async newPairingCode(): Promise<string> {
     const app = this.list.find(a => isHubServer(a.data))
     const folder = this.hubServerFolder()

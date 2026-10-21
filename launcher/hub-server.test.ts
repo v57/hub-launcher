@@ -128,11 +128,10 @@ describe('launcher/pair/new', () => {
     try {
       const { Apps, RunningApp, launcherKey } = await import('./app')
       const launcher = new Apps()
-      launcher.list.push(new RunningApp({ name: 'Hub', type: 'bun', repo: hubServerRepo, active: false }, launcher.infoStream))
+      launcher.list.push(new RunningApp({ name: 'Hub', type: 'bun', repo: hubServerRepo, active: false, restarts: false }, launcher.infoStream))
       expect(await launcher.newPairingCode()).toBe('ABC-123')
       expect(readFileSync(join(apps, 'hub-server', 'data', 'launcher'), 'utf8')).toBe(await launcherKey())
-      expect((await launcher.localInfo()).pairingCode).toBe('ABC-123')
-      expect((await launcher.info()).pairingCode).toBeUndefined()
+      expect(JSON.stringify(await launcher.info())).not.toContain('ABC')
     } finally {
       process.chdir(cwd)
     }
