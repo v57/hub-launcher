@@ -16,6 +16,8 @@ import { LazyState } from 'channel/more'
 import * as hubService from 'hub-service'
 import { publicKey } from 'hub-service'
 import { AppLogs, type LogLine } from './logs'
+import { Git } from './git'
+import { defaultApps, isHubServer, migrateHubServer, readPairingCode } from './hub-server'
 
 interface AppInfo {
   name: string
@@ -32,6 +34,8 @@ interface Status {
 }
 interface InfoStatus {
   apps: App[]
+  /** hub-server's pairing code; only the launcher's own key (the local CLI) sees it */
+  pairingCode?: string
 }
 interface AppStatus {
   name: string
@@ -233,7 +237,7 @@ export class RunningApp {
       this.status.started = new Date()
       this.infoStream.setNeedsUpdate()
       const startedAt = Date.now()
-      const process = launch(this.data, this.data.settings, appEnvironment(this.data.name))
+      const process = launch(this.data, this.data.settings, appEnvironment(this.data.name, await launcherKey()))
       this.processes.push(process)
       const output = Promise.all([this.logs.pump(process.stdout, 'stdout'), this.logs.pump(process.stderr, 'stderr')])
       try {
@@ -320,6 +324,12 @@ export class RunningApp {
   }
 }
 
+let launcherPublicKey: string | undefined
+/** The launcher's own service key */
+export async function launcherKey(): Promise<string> {
+  return (launcherPublicKey ??= await publicKey())
+}
+
 // Missing in hub-service versions before the device layer
 const deviceKeyPath: (() => string) | undefined = (hubService as { deviceKeyPath?: () => string }).deviceKeyPath
 
@@ -327,9 +337,11 @@ const deviceKeyPath: (() => string) | undefined = (hubService as { deviceKeyPath
  * What every app gets from the launcher: the shared device key, so its services are certified by this device,
  * and the app name as a stable instance name (cluster instances share it, as replicas of one service).
  */
-export function appEnvironment(name: string): Record<string, string> {
+export function appEnvironment(name: string, launcherKey?: string): Record<string, string> {
   const env: Record<string, string> = { HUB_INSTANCE: name }
   if (deviceKeyPath) env.HUB_DEVICE_KEY = resolve(deviceKeyPath())
+  // hub-server lets this key call launcher/* and, in local mode, makes it an owner
+  if (launcherKey) env.HUBLAUNCHER = launcherKey
   return env
 }
 
@@ -337,25 +349,31 @@ export class Apps {
   list: RunningApp[]
   statusStream = new LazyState<Status>(() => this.status()).delay(0.5).alwaysNeedsUpdate().dedupe('json')
   infoStream = new LazyState<InfoStatus>(() => this.info()).dedupe('json')
+  /** `launcher/info` with the pairing code, for the launcher's own key */
+  localInfoStream = new LazyState<InfoStatus>(() => this.localInfo())
+    .delay(1)
+    .alwaysNeedsUpdate()
+    .dedupe('json')
+  pairingCode?: string
+  private pairingWatch?: Timer
   constructor() {
     this.list = []
   }
   async load(): Promise<App[]> {
+    let configs: App[]
     try {
-      return await Bun.file('launch.json').json()
+      configs = await Bun.file('launch.json').json()
     } catch {
-      return [
-        {
-          name: 'Hub',
-          type: 'bun',
-          repo: 'v57/hub-lite',
-          active: true,
-          restarts: true,
-        },
-      ]
+      return defaultApps<App>()
     }
+    const migrated = await migrateHubServer(configs)
+    if (!migrated) return configs
+    console.log('Migrated the Hub server to hub-server')
+    await Bun.file('launch.json').write(JSON.stringify(migrated, null, 2))
+    return migrated
   }
   async start() {
+    this.watchPairingCode()
     const configs = await this.load()
     for (const config of configs) {
       const app = new RunningApp(config, this.infoStream)
@@ -404,6 +422,7 @@ export class Apps {
     }
   }
   async stop(): Promise<void> {
+    clearInterval(this.pairingWatch)
     await Promise.allSettled(this.list.map(app => app.stop()))
     this.infoStream.setNeedsUpdate()
     await new Promise(r => setTimeout(r, 500))
@@ -454,8 +473,50 @@ export class Apps {
       }
     }
   }
-  async info() {
+  async info(): Promise<InfoStatus> {
     return { apps: this.list.map(a => a.info()) }
+  }
+  async localInfo(): Promise<InfoStatus> {
+    const info = await this.info()
+    return this.pairingCode ? { ...info, pairingCode: this.pairingCode } : info
+  }
+  /** Folder of the installed hub-server, if any */
+  hubServerFolder(): string | undefined {
+    const app = this.list.find(a => isHubServer(a.data))
+    if (app?.data.type !== 'bun') return
+    return new Git(`https://github.com/${app.data.repo}`).directory
+  }
+  async readPairingCode(): Promise<string | undefined> {
+    const folder = this.hubServerFolder()
+    return folder ? readPairingCode(folder) : undefined
+  }
+  /** Prints hub-server's pairing code whenever it changes */
+  private watchPairingCode() {
+    const check = async () => {
+      const code = await this.readPairingCode()
+      if (code === this.pairingCode) return
+      this.pairingCode = code
+      if (code) console.log(`Pairing code: ${code} (enter it in the Hub app to become this hub's owner)`)
+    }
+    this.pairingWatch = setInterval(() => void check(), 2000)
+    this.pairingWatch.unref?.()
+    void check()
+  }
+  /** Replaces hub-server's pairing code (`hub-server --pair`) and returns the new one */
+  async newPairingCode(): Promise<string> {
+    const app = this.list.find(a => isHubServer(a.data))
+    const folder = this.hubServerFolder()
+    if (!app || !folder) throw 'hub-server is not installed'
+    const env = { ...process.env, ...appEnvironment(app.data.name, await launcherKey()), ...app.data.env }
+    // One-shot: writes data/pairing.json and data/pairing-code, which the running hub-server reads
+    const pair = Bun.spawn(['bun', '.', '--pair'], { cwd: folder, env, stdout: 'ignore', stderr: 'pipe', timeout: 30_000 })
+    const [code, stderr] = await Promise.all([pair.exited, new Response(pair.stderr).text()])
+    if (code !== 0) throw `hub-server --pair failed: ${stderr.trim() || `exit code ${code}`}`
+    const pairingCode = await readPairingCode(folder)
+    if (!pairingCode) throw 'hub-server did not write a pairing code'
+    this.pairingCode = pairingCode
+    console.log(`Pairing code: ${pairingCode} (enter it in the Hub app to become this hub's owner)`)
+    return pairingCode
   }
   async status() {
     try {
@@ -472,23 +533,6 @@ export class Apps {
     const i = this.list.findIndex(a => a.status.name === name)
     if (i === -1) return
     return this.list[i]
-  }
-  async pro(key: string) {
-    console.log('Upgrading to Hub Pro')
-    await this.optional('Hub')?.stop()
-    await this.create(
-      {
-        name: 'Hub Pro',
-        type: 'bun',
-        repo: 'v57/hub-pro',
-        active: true,
-        restarts: true,
-        env: { HUBOWNER: key, HUBLAUNCHER: await publicKey() },
-      },
-      false,
-    )
-    await this.uninstall('Hub', false)
-    await this.save()
   }
 }
 

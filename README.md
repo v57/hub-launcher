@@ -8,7 +8,8 @@
 Manage and run the apps in your Hub network. It's primarily used to launch Hub and it's services and keep them alive. 
 
 Implemented features:
-- Installs [Hub Lite](https://github.com/v57/hub-lite) server by default with the option to upgrade to [Pro](https://github.com/v57/hub-pro)
+- Installs the [Hub server](https://github.com/v57/hub-server) by default and prints its pairing code, which makes the first Hub app that enters it the hub's owner
+- Moves an older Hub Lite or Hub Pro install to hub-server (Hub Pro's data is kept)
 - Add installation, uninstallation, check for updates, update and launch shell scripts and use it from Hub app
 - Use bun preset to easily install bun and use scripts from GitHub
 - Watch process cpu and memory usage
@@ -44,9 +45,12 @@ docker run -d --name hub -p 1997:1997 -e HUBLISTEN=0.0.0.0:1997 --restart=always
 
 ```ts
 for await (const info of service.values('launcher/info')) {
-  // { apps: App[] }
+  // { apps: App[], pairingCode?: string }
 }
 ```
+
+`pairingCode` (hub-server's current code, `K7Q-2MX`) is only sent to the launcher's own key, which the `hub` CLI on
+the same device uses.
 
 ### Watch app status
 
@@ -99,11 +103,13 @@ await service.send('launcher/app/cluster', {
 })
 ```
 
-### Upgrade Hub
+### New pairing code
 
 ```ts
-await service.send('launcher/pro', 'your-owner-key')
+const code = await service.send('launcher/pair/new') // 'K7Q-2MX'
 ```
+
+Runs `hub-server --pair`, which replaces the old code. Only the launcher's own key may call it.
 
 ## Launch config
 
@@ -225,10 +231,9 @@ interface ProcessStatus {
 ```json
 [
   {
-    "name": "Hub Lite",
+    "name": "Hub",
     "type": "bun",
-    "command": "start",
-    "repo": "v57/hub-lite",
+    "repo": "v57/hub-server",
     "active": true
   },
   {
