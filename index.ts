@@ -1,6 +1,7 @@
 import { $ } from 'bun'
 import { Service } from 'hub-service'
 import { Apps } from './launcher/app'
+import { printAttachCode } from './launcher/attach'
 import { reportDevice } from './launcher/reporter'
 
 const apps = new Apps()
@@ -19,6 +20,8 @@ const service = new Service({
   icon: { symbol: 'apple.terminal.on.rectangle', text: 'GO' },
   instance: process.env.HUB_INSTANCE ?? 'hub-launcher',
   reporter: true,
+  // This device's key lies in a file every app can read, so it asks to be a child: it holds what the owner gives it
+  device: { attach: process.env.HUB_DEVICE_ATTACH?.trim() || true },
 } as ConstructorParameters<typeof Service>[0])
 service
   .post(
@@ -113,3 +116,4 @@ service
   .start()
 
 reportDevice(service)
+printAttachCode(service)

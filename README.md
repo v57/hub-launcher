@@ -110,6 +110,14 @@ Runs `hub-server --pair`, which replaces the old code. Only an owner may call it
 never goes over the hub otherwise: before the first owner, the launcher prints it and `hub pair` reads it from
 hub-server's `data/pairing-code` on the same device.
 
+## This device on the hub
+
+The launcher and its apps share a device key in a file (`~/.hub/device.key`, `/var/lib/hub/device.key` for root on Linux),
+so any of them can read it. That device asks to be a **child** on every connect (`Docs/Devices/protocol.md` section 14): it
+holds what the owner gives it and is never an owner. The launcher prints a safety code; the owner compares it and approves
+in the Hub app, on the Devices page. Set `HUB_DEVICE_ATTACH=<device id>` to name the parent. Its key gets `launcher/*` by a
+grant, which only hub-server hears of (`HUBLAUNCHER`), and no owner rights.
+
 ## Launch config
 
 `launch.json` stores the managed apps.

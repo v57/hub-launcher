@@ -94,6 +94,16 @@ describe('app environment', () => {
     expect(appEnvironment('Backup')).toEqual({ HUB_INSTANCE: 'Backup', HUB_DEVICE_KEY: process.env.HUB_DEVICE_KEY! })
   })
 
+  test('only hub-server hears the launcher key', async () => {
+    let saw = ''
+    const app = makeApp('echo "[$HUBLAUNCHER]"', false)
+    app.start()
+    await waitFor(() => app.launched === 0)
+    saw = app.logs.tail(1, 'stdout')[0]!.text
+    expect(saw).toBe('[]')
+    expect(appEnvironment('Hub', 'launcher-key').HUBLAUNCHER).toBe('launcher-key')
+  })
+
   test("the app's own env wins", async () => {
     const info = new LazyState(() => ({ apps: [] }))
     const app = new RunningApp(

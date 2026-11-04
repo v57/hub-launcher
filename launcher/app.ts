@@ -235,7 +235,7 @@ export class RunningApp {
       this.status.started = new Date()
       this.infoStream.setNeedsUpdate()
       const startedAt = Date.now()
-      const process = launch(this.data, this.data.settings, appEnvironment(this.data.name, await launcherKey()))
+      const process = launch(this.data, this.data.settings, appEnvironment(this.data.name, isHubServer(this.data) ? await launcherKey() : undefined))
       this.processes.push(process)
       const output = Promise.all([this.logs.pump(process.stdout, 'stdout'), this.logs.pump(process.stderr, 'stderr')])
       try {
@@ -332,14 +332,15 @@ export async function launcherKey(): Promise<string> {
 const deviceKeyPath: (() => string) | undefined = (hubService as { deviceKeyPath?: () => string }).deviceKeyPath
 
 /**
- * What every app gets from the launcher: the shared device key, so its services are certified by this device,
- * and the app name as a stable instance name (cluster instances share it, as replicas of one service).
+ * What every app gets from the launcher: the device key, so its services are certified by this device, and the app
+ * name as a stable instance name (cluster instances share it, as replicas of one service). That key is the launcher's
+ * own child key (protocol.md section 14): an app reading the file gets what the child has and no more.
+ * `hubLauncher` goes to hub-server alone, which grants that key launcher/*.
  */
-export function appEnvironment(name: string, launcherKey?: string): Record<string, string> {
+export function appEnvironment(name: string, hubLauncher?: string): Record<string, string> {
   const env: Record<string, string> = { HUB_INSTANCE: name }
   if (deviceKeyPath) env.HUB_DEVICE_KEY = resolve(deviceKeyPath())
-  // hub-server lets this key call launcher/* and, in local mode, makes it an owner
-  if (launcherKey) env.HUBLAUNCHER = launcherKey
+  if (hubLauncher) env.HUBLAUNCHER = hubLauncher
   return env
 }
 
