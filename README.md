@@ -119,6 +119,13 @@ holds what the owner gives it and is never an owner. The launcher prints a safet
 in the Hub app, on the Devices page. Set `HUB_DEVICE_ATTACH=<device id>` to name the parent. Its key gets `launcher/*` by a
 grant, which only hub-server hears of (`HUBLAUNCHER`), and no owner rights.
 
+## Who may manage apps
+
+Installing and uninstalling apps, changing their settings (env and secrets), updating and clustering are for owners
+only (`launcher/routes.ts`): they run code on this machine, and an env such as `HUBOWNER` on the Hub makes a key an
+owner. The launcher checks the hub's caller itself, so a grant doesn't open them. Starting, stopping, restarting and
+viewing apps can still be granted.
+
 ## Launch config
 
 `launch.json` stores the managed apps.

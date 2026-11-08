@@ -3,6 +3,8 @@ import { Service } from 'hub-service'
 import { Apps } from './launcher/app'
 import { printAttachCode } from './launcher/attach'
 import { reportDevice } from './launcher/reporter'
+import { routes } from './launcher/routes'
+import { chmod } from 'node:fs/promises'
 
 const apps = new Apps()
 await apps.start()
@@ -12,8 +14,9 @@ process.once('SIGTERM', async () => {
   process.exit(0)
 }) // Docker shutdown event
 
-const group = 'Launcher'
 type Request = { caller?: { owner?: boolean } }
+// The launcher's key, made before the SDK created key files 0600 (security audit L11)
+await chmod('auth', 0o600).catch(() => {})
 // The device's reporter on servers; a second launcher on the same device is ignored by the hub
 const service = new Service({
   name: 'Hub Launcher',
@@ -29,7 +32,7 @@ service
     async () => {
       await $`git pull`
     },
-    { permissions: { group, name: 'Update apps' } },
+    routes.update,
   )
   .post(
     'launcher/update/check',
@@ -37,30 +40,26 @@ service
       const res = await $`git fetch --dry-run`
       return res.stderr.length > 0
     },
-    { permissions: { group, name: 'Update apps' } },
+    routes.updateCheck,
   )
-  .post('launcher/update/check/all', () => apps.checkForUpdates(), { permissions: { group, name: 'Update apps' } })
-  .post('launcher/update/all', () => apps.update(), { permissions: { group, name: 'Update apps' } })
+  .post('launcher/update/check/all', () => apps.checkForUpdates(), routes.updateCheck)
+  .post('launcher/update/all', () => apps.update(), routes.update)
   .post(
     'launcher/stop',
     () => {
       apps.stop()
     },
-    { permissions: { group, name: 'Stop apps' } },
+    routes.stop,
   )
-  .stream('launcher/info', () => apps.infoStream.makeIterator(), {
-    permissions: { group, name: 'View app information' },
-  })
-  .stream('launcher/status', () => apps.statusStream.makeIterator(), {
-    permissions: { group, name: 'View app information' },
-  })
+  .stream('launcher/info', () => apps.infoStream.makeIterator(), routes.info)
+  .stream('launcher/status', () => apps.statusStream.makeIterator(), routes.info)
   .post(
     'launcher/app/logs',
     (body: string | { name: string; limit?: number }) => {
       const { name, limit } = typeof body === 'string' ? { name: body, limit: undefined } : body
       return apps.get(name).recentLogs(limit)
     },
-    { permissions: { group, name: 'View app information' } },
+    routes.info,
   )
   .post(
     'launcher/pair/new',
@@ -69,7 +68,7 @@ service
       if (request?.caller?.owner !== true) throw 'owner only'
       return apps.newPairingCode()
     },
-    { permissions: { group, name: 'Pair owners' } },
+    routes.pair,
   )
   .post(
     'launcher/app/stop',
@@ -77,7 +76,7 @@ service
       await apps.get(name).stop()
       await apps.save()
     },
-    { permissions: { group, name: 'Stop apps' } },
+    routes.stop,
   )
   .post(
     'launcher/app/start',
@@ -85,7 +84,7 @@ service
       apps.get(name).start()
       await apps.save()
     },
-    { permissions: { group, name: 'Start apps' } },
+    routes.start,
   )
   .post(
     'launcher/app/restart',
@@ -93,17 +92,17 @@ service
       await apps.get(name).stop()
       apps.get(name).start()
     },
-    { permissions: { group, name: 'Restart apps' } },
+    routes.restart,
   )
-  .post('launcher/app/create', app => apps.create(app), { permissions: { group, name: 'Install apps' } })
-  .post('launcher/app/uninstall', app => apps.uninstall(app), { permissions: { group, name: 'Uninstall apps' } })
+  .post('launcher/app/create', app => apps.create(app), routes.install)
+  .post('launcher/app/uninstall', app => apps.uninstall(app), routes.uninstall)
   .post(
     'launcher/app/settings',
     async ({ app, settings }) => {
       await apps.get(app).setSettings(settings)
       await apps.save()
     },
-    { permissions: { group, name: 'Install apps' } },
+    routes.settings,
   )
   .post(
     'launcher/app/cluster',
@@ -111,7 +110,7 @@ service
       await apps.get(name).setInstances(count)
       await apps.save()
     },
-    { permissions: { group, name: 'Cluster apps' } },
+    routes.cluster,
   )
   .start()
 
