@@ -4,6 +4,7 @@ import { Apps } from './launcher/app'
 import { printAttachCode } from './launcher/attach'
 import { reportDevice } from './launcher/reporter'
 import { routes } from './launcher/routes'
+import { descriptions } from './descriptions'
 import { chmod } from 'node:fs/promises'
 
 const apps = new Apps()
@@ -32,7 +33,7 @@ service
     async () => {
       await $`git pull`
     },
-    routes.update,
+    { ...routes.update, ...descriptions.post['launcher/update'] },
   )
   .post(
     'launcher/update/check',
@@ -40,26 +41,26 @@ service
       const res = await $`git fetch --dry-run`
       return res.stderr.length > 0
     },
-    routes.updateCheck,
+    { ...routes.updateCheck, ...descriptions.post['launcher/update/check'] },
   )
-  .post('launcher/update/check/all', () => apps.checkForUpdates(), routes.updateCheck)
-  .post('launcher/update/all', () => apps.update(), routes.update)
+  .post('launcher/update/check/all', () => apps.checkForUpdates(), { ...routes.updateCheck, ...descriptions.post['launcher/update/check/all'] })
+  .post('launcher/update/all', () => apps.update(), { ...routes.update, ...descriptions.post['launcher/update/all'] })
   .post(
     'launcher/stop',
     () => {
       apps.stop()
     },
-    routes.stop,
+    { ...routes.stop, ...descriptions.post['launcher/stop'] },
   )
-  .stream('launcher/info', () => apps.infoStream.makeIterator(), routes.info)
-  .stream('launcher/status', () => apps.statusStream.makeIterator(), routes.info)
+  .stream('launcher/info', () => apps.infoStream.makeIterator(), { ...routes.info, ...descriptions.stream['launcher/info'] })
+  .stream('launcher/status', () => apps.statusStream.makeIterator(), { ...routes.info, ...descriptions.stream['launcher/status'] })
   .post(
     'launcher/app/logs',
     (body: string | { name: string; limit?: number }) => {
       const { name, limit } = typeof body === 'string' ? { name: body, limit: undefined } : body
       return apps.get(name).recentLogs(limit)
     },
-    routes.info,
+    { ...routes.info, ...descriptions.post['launcher/app/logs'] },
   )
   .post(
     'launcher/pair/new',
@@ -68,7 +69,7 @@ service
       if (request?.caller?.owner !== true) throw 'owner only'
       return apps.newPairingCode()
     },
-    routes.pair,
+    { ...routes.pair, ...descriptions.post['launcher/pair/new'] },
   )
   .post(
     'launcher/app/stop',
@@ -76,7 +77,7 @@ service
       await apps.get(name).stop()
       await apps.save()
     },
-    routes.stop,
+    { ...routes.stop, ...descriptions.post['launcher/app/stop'] },
   )
   .post(
     'launcher/app/start',
@@ -84,7 +85,7 @@ service
       apps.get(name).start()
       await apps.save()
     },
-    routes.start,
+    { ...routes.start, ...descriptions.post['launcher/app/start'] },
   )
   .post(
     'launcher/app/restart',
@@ -92,17 +93,17 @@ service
       await apps.get(name).stop()
       apps.get(name).start()
     },
-    routes.restart,
+    { ...routes.restart, ...descriptions.post['launcher/app/restart'] },
   )
-  .post('launcher/app/create', app => apps.create(app), routes.install)
-  .post('launcher/app/uninstall', app => apps.uninstall(app), routes.uninstall)
+  .post('launcher/app/create', app => apps.create(app), { ...routes.install, ...descriptions.post['launcher/app/create'] })
+  .post('launcher/app/uninstall', app => apps.uninstall(app), { ...routes.uninstall, ...descriptions.post['launcher/app/uninstall'] })
   .post(
     'launcher/app/settings',
     async ({ app, settings }) => {
       await apps.get(app).setSettings(settings)
       await apps.save()
     },
-    routes.settings,
+    { ...routes.settings, ...descriptions.post['launcher/app/settings'] },
   )
   .post(
     'launcher/app/cluster',
@@ -110,7 +111,7 @@ service
       await apps.get(name).setInstances(count)
       await apps.save()
     },
-    routes.cluster,
+    { ...routes.cluster, ...descriptions.post['launcher/app/cluster'] },
   )
   .start()
 
