@@ -41,6 +41,63 @@ docker build -t hub .
 docker run -d --name hub -p 1997:1997 -e HUBLISTEN=0.0.0.0:1997 --restart=always hub
 ```
 
+## Installing on a Hub
+
+The launcher is what puts a Hub on a machine, so it isn't in the app catalogue: it is installed by the `hub` CLI
+(`bunx v57/hub`, which keeps it in `~/Hub/Launcher`), by the Docker image, or by running it from a clone. On its
+first start it installs hub-server, keeps it running and prints the pairing code. The `hub` CLI starts, stops,
+updates, backs up and autostarts it (see the [hub CLI](https://github.com/v57/hub)).
+
+Every app the launcher installs is cloned into `apps/<repository name>` under the launcher's folder and runs there,
+so an app's service key (`auth`) and data stay in that folder.
+
+Environment:
+
+| Variable | Default | |
+|---|---|---|
+| `HUB` | `1997` | Hub address the launcher connects to (port or `ws://`/`wss://` URL) |
+| `HUB_INSTANCE` | `hub-launcher` | Instance name of the launcher's service on its device |
+| `HUB_DEVICE_ATTACH` | none | Device id of the parent the launcher's device asks to be attached to |
+| `HUB_DEVICE_KEY` | `~/.hub/device.key` (`/var/lib/hub/device.key` for root on Linux) | Device key file shared with the apps |
+| `HUBLISTEN` | hub-server's default | Read by hub-server, which inherits the launcher's environment; the Docker image sets `0.0.0.0:1997` |
+
+Every app inherits the launcher's environment, plus `HUB_INSTANCE` (the app's name), `HUB_DEVICE_KEY` and the app's
+own `env` and secrets. hub-server alone also gets `HUBLAUNCHER`, the launcher's public key.
+
+Secrets: the launcher needs none of its own. Its service key is the `auth` file in its folder (made 0600 at start).
+Apps' secret values (`settings.secrets`) are kept in `launch.json` and never sent back by `launcher/info`.
+
+Approval: hub-server lets the key named by `HUBLAUNCHER` host `launcher/*` without an owner's approval and gives it a
+stored `prefix` grant of `launcher/`; it is never an owner. The launcher's device asks to be a child of a device of
+the owner (see "This device on the hub" below), which the owner approves in the Hub app. A launcher connecting to a
+hub that didn't get its key as `HUBLAUNCHER` waits on the Hub app's **Requests** page until an owner allows its paths.
+
+## API
+
+Every path is described for `hub/api/list` in `descriptions.ts` (titles, descriptions, input and output schemas).
+The Hub protocol's API descriptions are in section 15 of `Docs/Devices/protocol.md` in the Hub workspace.
+
+| Path | Kind | Title | Takes | Returns |
+|---|---|---|---|---|
+| `launcher/update` | post | Update the launcher | nothing | nothing; runs `git pull`, new code runs after a restart |
+| `launcher/update/check` | post | Check for a launcher update | nothing | `boolean`: the launcher's repository has new commits |
+| `launcher/update/check/all` | post | Check apps for updates | nothing | nothing; marks apps `updateAvailable` in `launcher/info` |
+| `launcher/update/all` | post | Update apps | nothing | nothing; updates marked apps, restarts active ones, stops at the first failure |
+| `launcher/stop` | post | Stop all apps | nothing | nothing; hub-server included, the launcher keeps running |
+| `launcher/app/logs` | post | App logs | app name, or `{ name, limit? }` (1 to 500, default 200) | `{ time, stream: 'stdout' \| 'stderr', text }[]`, oldest first |
+| `launcher/pair/new` | post | New pairing code | nothing | pairing code, like `K7Q-2MX` |
+| `launcher/app/start` | post | Start an app | app name | nothing; saved as active |
+| `launcher/app/stop` | post | Stop an app | app name | nothing; saved as inactive |
+| `launcher/app/restart` | post | Restart an app | app name | nothing |
+| `launcher/app/create` | post | Install an app | `AppSetup` (bun, sh or systemd, see Launch config) | nothing; starts it when active |
+| `launcher/app/uninstall` | post | Uninstall an app | app name | nothing; an unknown name does nothing |
+| `launcher/app/settings` | post | Change app settings | `{ app, settings: { env?, secrets? } }` | nothing; restarts the app when active |
+| `launcher/app/cluster` | post | Set app instances | `{ name, count }` (at most 1024) | nothing |
+| `launcher/info` | stream | Installed apps | nothing | `{ apps }`: each app's setup with `updateAvailable` and settings, without secrets |
+| `launcher/status` | stream | App status | nothing | `{ apps: AppStatus[] }`, at most every half second while it changes |
+
+Errors are strings such as `app not found`, `too many instances` or the failing command's output.
+
 # Api usage
 ### Watch app info
 
@@ -119,12 +176,40 @@ holds what the owner gives it and is never an owner. The launcher prints a safet
 in the Hub app, on the Devices page. Set `HUB_DEVICE_ATTACH=<device id>` to name the parent. Its key gets `launcher/*` by a
 grant, which only hub-server hears of (`HUBLAUNCHER`), and no owner rights.
 
-## Who may manage apps
+## Permissions
 
 Installing and uninstalling apps, changing their settings (env and secrets), updating and clustering are for owners
 only (`launcher/routes.ts`): they run code on this machine, and an env such as `HUBOWNER` on the Hub makes a key an
 owner. The launcher checks the hub's caller itself, so a grant doesn't open them. Starting, stopping, restarting and
 viewing apps can still be granted.
+
+Every launcher path carries a permission in the `Launcher` group (the Hub app's **Permissions** table shows them as
+`Launcher: <name>`). A path with a permission is closed to everyone but owners and callers granted it, in both
+`default-deny` and `default-allow` hubs, so on a new hub only owners can use the launcher.
+
+| Path | Permission | Who may call |
+|---|---|---|
+| `launcher/update`, `launcher/update/all` | Update apps | owners only |
+| `launcher/pair/new` | Pair owners | owners only |
+| `launcher/app/create` | Install apps | owners only |
+| `launcher/app/uninstall` | Uninstall apps | owners only |
+| `launcher/app/settings` | Change app settings | owners only |
+| `launcher/app/cluster` | Cluster apps | owners only |
+| `launcher/update/check`, `launcher/update/check/all` | Check for updates | owners, and callers granted the path |
+| `launcher/stop`, `launcher/app/stop` | Stop apps | owners, and callers granted the path |
+| `launcher/app/start` | Start apps | owners, and callers granted the path |
+| `launcher/app/restart` | Restart apps | owners, and callers granted the path |
+| `launcher/info`, `launcher/status`, `launcher/app/logs` | View app information | owners, and callers granted the path |
+
+For the owners-only paths the launcher also checks `auth: 'owner'` on the hub's caller, so no grant opens them.
+To let another device watch and restart apps, an owner grants those paths, in the Hub app (a permission group, or the
+device's grants) or with the hub's grant API:
+
+```ts
+await owner.send('hub/grant/add', { subject: { device: '<device id>' }, object: { path: 'launcher/app/restart' } })
+```
+
+A `prefix` grant of `launcher/` gives every path above that isn't owners-only.
 
 ## Launch config
 
@@ -232,6 +317,8 @@ interface AppStatus {
   crashes: number
   processes: ProcessStatus[]
   started?: Date
+  /** When a crashed app is started again */
+  nextRestart?: Date
 }
 
 interface ProcessStatus {
@@ -266,3 +353,16 @@ interface ProcessStatus {
   }
 ]
 ```
+
+## Testing
+
+```sh
+bun install
+bun test
+```
+
+`bunfig.toml` preloads `testing/setup.ts`, which points `HUB_DEVICE_KEY` at a temporary file, so tests never touch
+the machine's device key. The tests cover the app manager, hub-server pinning and migration, the lockfile's pinned
+SDK, the device and attach flow, the routes' owner checks and that every registered path is described with schemas
+in the subset (`descriptions.test.ts`). The systemd acceptance test runs only on Linux as root with
+`HUB_LAUNCHER_SYSTEMD_ACCEPTANCE=1` (see "Managing hub-net" above).
