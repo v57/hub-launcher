@@ -9,6 +9,7 @@ Manage and run the apps in your Hub network. It's primarily used to launch Hub a
 
 Implemented features:
 - Installs the [Hub server](https://github.com/v57/hub-server) by default and prints its pairing code, which makes the first Hub app that enters it the hub's owner
+- Installs hub-server at its release tag (`hubServerTag` in `launcher/hub-server.ts`), never from `main`: Update moves it to the tag a newer launcher names
 - Moves an older Hub Lite or Hub Pro install to hub-server (Hub Pro's data is kept)
 - Add installation, uninstallation, check for updates, update and launch shell scripts and use it from Hub app
 - Use bun preset to easily install bun and use scripts from GitHub
@@ -241,6 +242,7 @@ interface ProcessStatus {
     "name": "Hub",
     "type": "bun",
     "repo": "v57/hub-server",
+    "commit": "1.1.0",
     "active": true
   },
   {

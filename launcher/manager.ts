@@ -50,16 +50,20 @@ const bun: ManagerType<IBun> = {
   async install(setup: IBun) {
     const git = new Git(`https://github.com/${setup.repo}`)
     await git.clone()
-    await git.changeCommit(setup.commit)
+    // A pinned app (hub-server's release tag) moves to its pin, also from a clone of main
+    const moved = await git.changeCommit(setup.commit)
     const didInstall = await exists(`${git.directory}/node_modules`)
-    if (!didInstall) await bunInstall(git.directory)
+    if (!didInstall || moved) await bunInstall(git.directory)
   },
   async checkForUpdates(setup: IBun) {
-    return new Git(`https://github.com/${setup.repo}`).checkForUpdates()
+    const git = new Git(`https://github.com/${setup.repo}`)
+    return setup.commit ? git.isAway(setup.commit) : git.checkForUpdates()
   },
   async update(setup: IBun) {
     const git = new Git(`https://github.com/${setup.repo}`)
-    await git.update()
+    // A pinned app goes to its pin, never to the branch's head
+    if (setup.commit) await git.changeCommit(setup.commit, true)
+    else await git.update()
     await bunInstall(git.directory)
   },
   async uninstall(setup: IBun) {

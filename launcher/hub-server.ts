@@ -6,6 +6,11 @@ import type { AppSetup } from './manager'
 
 /** The Hub server the launcher installs. hub-lite is retired and hub-pro was renamed to hub-server. */
 export const hubServerRepo = 'v57/hub-server'
+/**
+ * The hub-server release the launcher installs, and the one place that names it: new installs, Update All and the
+ * Docker image land on this tag, never on `main`. A launcher update that changes it moves the Hub to the new tag.
+ */
+export const hubServerTag = '1.1.0'
 const retiredRepos = ['v57/hub-lite', 'v57/hub-pro']
 
 interface LaunchEntry {
@@ -16,7 +21,21 @@ interface LaunchEntry {
 type Entry = LaunchEntry & AppSetup
 
 export function defaultApps<T extends Entry>(): T[] {
-  return [{ name: 'Hub', type: 'bun', repo: hubServerRepo, active: true, restarts: true } as T]
+  return [{ name: 'Hub', type: 'bun', repo: hubServerRepo, commit: hubServerTag, active: true, restarts: true } as T]
+}
+
+/**
+ * Points every hub-server entry at `hubServerTag`, also one installed from `main` before or pinned to an older tag.
+ * Returns the list when something changed.
+ */
+export function pinHubServer<T extends Entry>(apps: T[]): T[] | undefined {
+  let changed = false
+  const result = apps.map(app => {
+    if (!isHubServer(app) || (app as { commit?: string }).commit === hubServerTag) return app
+    changed = true
+    return { ...app, commit: hubServerTag }
+  })
+  return changed ? result : undefined
 }
 
 function repoOf(app: Entry): string | undefined {

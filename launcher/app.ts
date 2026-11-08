@@ -17,7 +17,7 @@ import * as hubService from 'hub-service'
 import { publicKey } from 'hub-service'
 import { AppLogs, type LogLine } from './logs'
 import { Git } from './git'
-import { defaultApps, isHubServer, migrateHubServer, readPairingCode } from './hub-server'
+import { defaultApps, isHubServer, migrateHubServer, pinHubServer, readPairingCode } from './hub-server'
 
 interface AppInfo {
   name: string
@@ -362,10 +362,13 @@ export class Apps {
       return defaultApps<App>()
     }
     const migrated = await migrateHubServer(configs)
-    if (!migrated) return configs
-    console.log('Migrated the Hub server to hub-server')
-    await Bun.file('launch.json').write(JSON.stringify(migrated, null, 2))
-    return migrated
+    if (migrated) console.log('Migrated the Hub server to hub-server')
+    const pinned = pinHubServer(migrated ?? configs)
+    if (pinned) console.log('Pinned hub-server to its release tag')
+    const result = pinned ?? migrated
+    if (!result) return configs
+    await Bun.file('launch.json').write(JSON.stringify(result, null, 2))
+    return result
   }
   async start() {
     this.watchPairingCode()
@@ -386,7 +389,8 @@ export class Apps {
       installed.data.restarts = config.restarts
       if (config.active) installed.start()
     } else {
-      const app = new RunningApp(config, this.infoStream)
+      // hub-server from the store or another device's launcher config also lands on the release tag
+      const app = new RunningApp(pinHubServer([config])?.[0] ?? config, this.infoStream)
       await app.install()
       this.list.push(app)
       if (config.active) app.start()

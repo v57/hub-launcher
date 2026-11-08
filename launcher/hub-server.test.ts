@@ -3,7 +3,16 @@ import { $ } from 'bun'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { defaultApps, formatPairingCode, hubServerRepo, migrateHubServer, readPairingCode } from './hub-server'
+import { Git } from './git'
+import {
+  defaultApps,
+  formatPairingCode,
+  hubServerRepo,
+  hubServerTag,
+  migrateHubServer,
+  pinHubServer,
+  readPairingCode,
+} from './hub-server'
 
 let apps: string
 beforeEach(() => {
@@ -22,7 +31,9 @@ function folder(name: string, files: Record<string, string> = {}) {
 
 describe('hub-server migration', () => {
   test('installs hub-server by default', () => {
-    expect(defaultApps()).toEqual([{ name: 'Hub', type: 'bun', repo: hubServerRepo, active: true, restarts: true }])
+    expect(defaultApps()).toEqual([
+      { name: 'Hub', type: 'bun', repo: hubServerRepo, commit: hubServerTag, active: true, restarts: true },
+    ])
   })
 
   test('leaves lists without hub-lite or hub-pro alone', async () => {
@@ -94,6 +105,55 @@ describe('hub-server migration', () => {
     await migrateHubServer([{ name: 'Hub Pro', type: 'bun', repo: 'v57/hub-pro', active: true }], apps)
     expect(readFileSync(join(apps, 'hub-pro', 'data', 'auth'), 'utf8')).toBe('pro key')
     expect(readFileSync(join(apps, 'hub-server', 'data', 'auth'), 'utf8')).toBe('server key')
+  })
+})
+
+// Security audit M16: the launcher, the CLI's launcher and the Docker image installed hub-server from main
+describe('hub-server release tag', () => {
+  test('pins hub-server entries to the tag and leaves other apps alone', () => {
+    const s3 = { name: 'S3', type: 'bun', repo: 'v57/hub-s3', active: true }
+    expect(pinHubServer([s3])).toBeUndefined()
+    expect(pinHubServer([{ name: 'Hub', type: 'bun', repo: hubServerRepo, commit: hubServerTag, active: true }])).toBeUndefined()
+    expect(
+      pinHubServer([{ name: 'Hub', type: 'bun', repo: hubServerRepo, commit: '1.0.0', active: true }, s3]),
+    ).toEqual([{ name: 'Hub', type: 'bun', repo: hubServerRepo, commit: hubServerTag, active: true }, s3])
+    expect(pinHubServer([{ name: 'Hub', type: 'bun', repo: hubServerRepo, active: true }])).toEqual([
+      { name: 'Hub', type: 'bun', repo: hubServerRepo, commit: hubServerTag, active: true },
+    ])
+  })
+
+  test('a clone of main moves to the tag, stays there, and follows a moved tag', async () => {
+    const root = join(apps, '..')
+    const origin = join(root, 'origin', 'hub-server')
+    mkdirSync(origin, { recursive: true })
+    const commit = async (message: string) => {
+      writeFileSync(join(origin, 'file'), message)
+      await $`git add file && git -c user.name=t -c user.email=t@t commit -qm ${message}`.cwd(origin).quiet()
+      return (await $`git rev-parse HEAD`.cwd(origin).text()).trim()
+    }
+    await $`git init -q -b main`.cwd(origin).quiet()
+    const release = await commit('release')
+    await $`git tag 1.1.0`.cwd(origin).quiet()
+    const next = await commit('main')
+    const cwd = process.cwd()
+    process.chdir(root)
+    try {
+      const git = new Git(origin)
+      await git.clone()
+      expect(await git.head()).toBe(next)
+      expect(await git.isAway('1.1.0')).toBe(true)
+      expect(await git.changeCommit('1.1.0')).toBe(true)
+      expect(await git.head()).toBe(release)
+      expect(await git.changeCommit('1.1.0')).toBe(false)
+      expect(await git.isAway('1.1.0')).toBe(false)
+      await $`git tag -f 1.1.0 ${next}`.cwd(origin).quiet()
+      expect(await git.isAway('1.1.0')).toBe(true)
+      expect(await git.changeCommit('1.1.0', true)).toBe(true)
+      expect(await git.head()).toBe(next)
+      expect(git.changeCommit('--upload-pack=x')).rejects.toThrow('invalid ref')
+    } finally {
+      process.chdir(cwd)
+    }
   })
 })
 

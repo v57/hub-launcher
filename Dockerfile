@@ -12,6 +12,8 @@ WORKDIR /app
 # Install dependencies exactly as bun.lock pins them (never `bun update`, which would take hub-service from main)
 RUN bun install --production --frozen-lockfile
 
+# The launcher installs hub-server at its release tag (`hubServerTag` in launcher/hub-server.ts), never from main
+
 # Set environment variable
 ENV HUBLISTEN=0.0.0.0:1997
 
