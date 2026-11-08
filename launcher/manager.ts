@@ -37,13 +37,22 @@ interface IBun extends IGithub, IEnv {
 interface TBun extends IBun {
   type: 'bun'
 }
+/**
+ * Installs an app's dependencies exactly as its bun.lock pins them, never newer: a lockfile that doesn't match its
+ * package.json fails the install instead of resolving `main` (security audit H5)
+ */
+export const bunInstallCommand = ['bun', 'install', '--production', '--frozen-lockfile']
+async function bunInstall(directory: string) {
+  await $`${bunInstallCommand}`.cwd(directory)
+}
+
 const bun: ManagerType<IBun> = {
   async install(setup: IBun) {
     const git = new Git(`https://github.com/${setup.repo}`)
     await git.clone()
     await git.changeCommit(setup.commit)
     const didInstall = await exists(`${git.directory}/node_modules`)
-    if (!didInstall) await $`bun i --production`.cwd(git.directory)
+    if (!didInstall) await bunInstall(git.directory)
   },
   async checkForUpdates(setup: IBun) {
     return new Git(`https://github.com/${setup.repo}`).checkForUpdates()
@@ -51,7 +60,7 @@ const bun: ManagerType<IBun> = {
   async update(setup: IBun) {
     const git = new Git(`https://github.com/${setup.repo}`)
     await git.update()
-    await $`bun i --production`.cwd(git.directory)
+    await bunInstall(git.directory)
   },
   async uninstall(setup: IBun) {
     const git = new Git(`https://github.com/${setup.repo}`)
